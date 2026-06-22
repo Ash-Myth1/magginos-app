@@ -162,10 +162,12 @@ export const useStore = create<AppState>((set, get) => ({
       const existing = s.cart.find((c) => c.id === item.id);
       const currentQty = existing ? existing.qty : 0;
       
-      // Enforce actual inventory limit if tracked
+      // Enforce actual inventory limit if tracked, plus a hard sanity limit of 10
       const remaining = s.getRemainingStock(item);
-      if (remaining !== null && currentQty >= remaining) {
-        return s; // Can't add more than we have left
+      const limit = remaining !== null ? Math.min(remaining, 10) : 10;
+      
+      if (currentQty >= limit) {
+        return s; // Can't add more than limit
       }
       
       if (existing) {

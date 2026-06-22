@@ -34,6 +34,10 @@ export const OrderService = {
         
         // Validate stock limits for all items
         for (const item of orderData.items) {
+          if (item.qty > 10) {
+            throw new Error(`Sanity limit exceeded: You cannot order more than 10 of a single item (${item.name}).`);
+          }
+          
           const stock = prepCounts[item.name];
           if (stock !== undefined) {
             if (item.qty > stock) {
