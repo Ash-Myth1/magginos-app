@@ -2,7 +2,7 @@
 // Encapsulates ALL Firebase real-time listeners.
 // Call this once at the top of the app — it populates the Zustand store.
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import {
   collection,
   doc,
@@ -29,22 +29,44 @@ export function useFirebaseSync() {
     setIsLoading,
   } = useStore();
 
+  // Track readiness of both auth and menu so we only hide the skeleton
+  // once BOTH have resolved at least once.
+  const menuReady = useRef(false);
+  const authReady = useRef(false);
+
+  const tryFinishLoading = useCallback(() => {
+    if (menuReady.current && authReady.current) {
+      setIsLoading(false);
+    }
+  }, [setIsLoading]);
+
   // ── 1. Public: Menu items (Firestore → store) ──────────────────────────
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, 'menu'),
       (snap) => {
-        if (!snap.empty) {
-          const items = snap.docs
-            .map((d) => ({ id: Number(d.id), ...d.data() } as MenuItem))
-            .sort((a, b) => a.id - b.id);
-          setMenuItems(items);
+        const items = snap.docs
+          .map((d) => ({ id: Number(d.id), ...d.data() } as MenuItem))
+          .sort((a, b) => a.id - b.id);
+        setMenuItems(items);
+
+        // Mark menu as ready even if collection is empty
+        if (!menuReady.current) {
+          menuReady.current = true;
+          tryFinishLoading();
         }
       },
-      (err) => console.error('[Menu sync]', err)
+      (err) => {
+        console.error('[Menu sync]', err);
+        // Even on error, mark as ready so the UI doesn't stay stuck
+        if (!menuReady.current) {
+          menuReady.current = true;
+          tryFinishLoading();
+        }
+      }
     );
     return unsub;
-  }, [setMenuItems]);
+  }, [setMenuItems, tryFinishLoading]);
 
   // ── 2. Public: Inventory / out-of-stock IDs ───────────────────────────
   useEffect(() => {
@@ -91,11 +113,16 @@ export function useFirebaseSync() {
       } else {
         setCurrentUser(null);
       }
-      // Small delay ensures skeleton shows briefly during cold start
-      setTimeout(() => setIsLoading(false), 600);
+
+      // Mark auth as resolved
+      if (!authReady.current) {
+        authReady.current = true;
+        // Small delay ensures skeleton shows briefly during cold start
+        setTimeout(() => tryFinishLoading(), 600);
+      }
     });
     return unsub;
-  }, [patchCustomerInfo, setCurrentUser, setIsLoading]);
+  }, [patchCustomerInfo, setCurrentUser, tryFinishLoading]);
 
   // ── 4. Secure: Orders (scoped to role) ────────────────────────────────
   useEffect(() => {

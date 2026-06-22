@@ -8,8 +8,9 @@ export function Menu() {
 
   if (menuItems.length === 0) {
     return (
-      <div className="text-center py-16 opacity-60">
-        <p className="font-bold text-slate-500">Loading menu...</p>
+      <div className="text-center py-16">
+        <p className="font-bold text-slate-500">No menu items available right now.</p>
+        <p className="text-sm text-slate-400 mt-2">Please check back later!</p>
       </div>
     );
   }
