@@ -40,6 +40,9 @@ interface AppState {
   activeTrackingId: string | null;
   itemRatings: Record<number, ItemRating>;
 
+  // ─── Intelligence ────────────────────────────────────────────────────────
+  actualPrepCounts: Record<string, number>;
+
   // ─── Computed helpers ────────────────────────────────────────────────────
   cartTotal: () => number;
   cartCount: () => number;
@@ -68,6 +71,8 @@ interface AppState {
   setActiveTrackingId: (id: string | null) => void;
   setItemRating: (itemId: number, field: keyof ItemRating, value: string | number) => void;
   clearItemRatings: () => void;
+
+  setActualPrepCount: (itemName: string, count: number) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -91,6 +96,8 @@ export const useStore = create<AppState>((set, get) => ({
   showMyOrders: false,
   activeTrackingId: null,
   itemRatings: {},
+  
+  actualPrepCounts: {},
 
   // ─── Computed ────────────────────────────────────────────────────────────
   cartTotal: () => get().cart.reduce((sum, i) => sum + i.price * i.qty, 0),
@@ -142,4 +149,13 @@ export const useStore = create<AppState>((set, get) => ({
       },
     })),
   clearItemRatings: () => set({ itemRatings: {} }),
+
+  // ─── Intelligence ────────────────────────────────────────────────────────
+  setActualPrepCount: (itemName, count) =>
+    set((s) => ({
+      actualPrepCounts: {
+        ...s.actualPrepCounts,
+        [itemName]: count,
+      },
+    })),
 }));
