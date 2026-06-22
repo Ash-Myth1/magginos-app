@@ -17,17 +17,21 @@ export const OrderService = {
       const docRef = await addDoc(collection(db, "orders"), orderData);
       
       // Fire confirmation email asynchronously
-      emailjs.send(
-        emailConfig.serviceId,
-        emailConfig.newOrderTemplate,
-        {
-          to_name: orderData.customer.name,
-          to_email: orderData.customer.email,
-          order_id: orderData.displayId,
-          total: orderData.total
-        },
-        emailConfig.publicKey
-      ).catch(err => console.error("EmailJS Error:", err));
+      if (!emailConfig.serviceId) {
+        console.warn("EmailJS is not configured! Please check your VITE_EMAILJS environment variables.");
+      } else {
+        emailjs.send(
+          emailConfig.serviceId,
+          emailConfig.newOrderTemplate,
+          {
+            to_name: orderData.customer.name || 'Magginos Customer',
+            to_email: orderData.customer.email,
+            order_id: orderData.displayId,
+            total: orderData.total
+          },
+          emailConfig.publicKey
+        ).catch(err => console.error("EmailJS Error:", err));
+      }
 
       return docRef.id;
     } catch (error) {
@@ -54,17 +58,21 @@ export const OrderService = {
           ? 'ready to be picked up' 
           : (orderData.orderType === 'delivery' ? 'delivered to your room' : 'picked up');
           
-        emailjs.send(
-          emailConfig.serviceId,
-          emailConfig.deliveredTemplate,
-          {
-            to_name: orderData.customer.name,
-            to_email: orderData.customer.email,
-            order_id: orderData.displayId,
-            status: statusText
-          },
-          emailConfig.publicKey
-        ).catch(err => console.error("EmailJS Error:", err));
+        if (!emailConfig.serviceId) {
+          console.warn("EmailJS is not configured! Please check your VITE_EMAILJS environment variables.");
+        } else {
+          emailjs.send(
+            emailConfig.serviceId,
+            emailConfig.deliveredTemplate,
+            {
+              to_name: orderData.customer.name || 'Magginos Customer',
+              to_email: orderData.customer.email,
+              order_id: orderData.displayId,
+              status: statusText
+            },
+            emailConfig.publicKey
+          ).catch(err => console.error("EmailJS Error:", err));
+        }
       }
       return true;
     } catch (error) {

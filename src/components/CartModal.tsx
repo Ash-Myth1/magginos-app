@@ -41,7 +41,7 @@ export function CartModal({ onLogin }: CartModalProps) {
       deliveryFee,
       orderType: customerInfo.orderType,
       paymentMethod: customerInfo.paymentMethod,
-      customer: { ...customerInfo, email: currentUser.email ?? undefined, uid },
+      customer: { ...customerInfo, name: currentUser.displayName || 'Customer', email: currentUser.email ?? undefined, uid },
       status: 'Received',
       time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       timestamp: now.getTime(),
