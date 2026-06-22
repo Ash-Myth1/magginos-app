@@ -4,7 +4,8 @@ import { Plus, AlertCircle, Sparkles } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 export function Menu() {
-  const { menuItems, outOfStockIds, isStoreOpen, addToCart } = useStore();
+  const { menuItems, isStoreOpen, addToCart, getEffectiveOutOfStockIds } = useStore();
+  const effectiveOutIds = getEffectiveOutOfStockIds();
 
   if (menuItems.length === 0) {
     return (
@@ -24,7 +25,7 @@ export function Menu() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
         {menuItems.map((item) => {
-          const isOut = outOfStockIds.includes(item.id);
+          const isOut = effectiveOutIds.includes(item.id);
           const disabled = isOut || !isStoreOpen;
 
           return (
