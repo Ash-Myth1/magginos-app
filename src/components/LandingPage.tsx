@@ -225,14 +225,12 @@ export function LandingPage() {
           initial={{ opacity: 0, y: 60 }}
           animate={{ opacity: stage >= 6 ? 1 : 0, y: stage >= 6 ? 0 : 60 }}
           transition={{ duration: 1.2, ease: "easeOut", delay: 0.4 }}
-          style={{ willChange: "transform, opacity" }}
           className="relative z-20 mt-10 group cursor-pointer"
           onClick={() => navigate('/order')}
         >
           <motion.div 
             animate={{ y: [0, -10, 0] }} 
-            transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
-            style={{ willChange: "transform" }}
+            transition={{ repeat: Infinity, duration: 5, ease: "easeInOut", delay: 1.6 }}
           >
             <BowlStack isHero={true} />
           </motion.div>
