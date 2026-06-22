@@ -116,20 +116,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   getRemainingStock: (item: MenuItem) => {
     const s = get();
-    const prep = s.actualPrepCounts[item.name];
-    if (prep === undefined) return null; // No explicit prep count tracked
+    const stock = s.actualPrepCounts[item.name];
+    if (stock === undefined) return null; // No explicit stock tracked
     
-    // Helper to determine the "logical day"
-    const logicalDay = (ts: number) => {
-      const d = new Date(ts);
-      if (d.getHours() < 5) d.setDate(d.getDate() - 1);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    };
-    
-    const today = logicalDay(Date.now());
-    const soldToday = s.soldCounts[today]?.[item.name] || 0;
-    
-    return Math.max(0, prep - soldToday);
+    return stock;
   },
 
   getEffectiveOutOfStockIds: () => {

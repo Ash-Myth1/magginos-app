@@ -34,20 +34,23 @@ export const OrderService = {
         
         // Validate stock limits for all items
         for (const item of orderData.items) {
-          const prep = prepCounts[item.name];
-          if (prep !== undefined) {
-            const sold = todaySold[item.name] || 0;
-            const remaining = Math.max(0, prep - sold);
-            if (item.qty > remaining) {
-              throw new Error(`Sorry, we only have ${remaining}x ${item.name} left! Please reduce quantity.`);
+          const stock = prepCounts[item.name];
+          if (stock !== undefined) {
+            if (item.qty > stock) {
+              throw new Error(`Sorry, we only have ${stock}x ${item.name} left! Please reduce quantity.`);
             }
-            todaySold[item.name] = sold + item.qty;
+            // Decrement the absolute stock!
+            prepCounts[item.name] = stock - item.qty;
           }
+          
+          // Still track sold counts for Admin UI Analytics
+          const sold = todaySold[item.name] || 0;
+          todaySold[item.name] = sold + item.qty;
         }
         
         soldCounts[today] = todaySold;
         
-        transaction.set(inventoryRef, { soldCounts }, { merge: true });
+        transaction.set(inventoryRef, { prepCounts, soldCounts }, { merge: true });
         transaction.set(newOrderRef, { ...orderData, dbId: newOrderRef.id });
       });
       
