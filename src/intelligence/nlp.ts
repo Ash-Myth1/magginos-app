@@ -448,7 +448,7 @@ export function analyzeReviewText(
  *                summaries, hourly issue aggregation, and the biggest-issue
  *                headline.
  */
-export function generateReviewInsights(orders: Order[]): ReviewInsights {
+export function generateReviewInsights(orders: Order[], isDemoMode?: boolean): ReviewInsights {
   const processedReviews: ProcessedReview[] = [];
 
   // ── Step 1: Extract aspect-level reviews from real order data ──────────
@@ -478,9 +478,9 @@ export function generateReviewInsights(orders: Order[]): ReviewInsights {
   }
 
   // ── Step 2: Demo-mode fallback ────────────────────────────────────────
-  const isUsingDemoData = processedReviews.length < 5;
+  const isUsingDemoData = isDemoMode !== undefined ? isDemoMode : processedReviews.length < 5;
   const reviewsForAnalysis = isUsingDemoData
-    ? generateDemoReviews()
+    ? [...generateDemoReviews(), ...processedReviews]
     : processedReviews;
 
   // ── Step 3: Build topic summaries ─────────────────────────────────────
