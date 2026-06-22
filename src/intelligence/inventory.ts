@@ -67,8 +67,20 @@ export interface WastageAlert {
   reason: string;
 }
 
+/** Recommended prep amounts for the upcoming/current shift. */
+export interface PrepRecommendation {
+  itemName: string;
+  /** Expected average sales for today (adjusted for day-of-week). */
+  expectedSales: number;
+  /** Recommended amount to prep (typically 1.3x expected sales). */
+  recommendedQty: number;
+  /** How many units have already been sold today. */
+  soldToday: number;
+}
+
 /** Top-level container returned by the engine. */
 export interface InventoryInsights {
+  prepRecommendations: PrepRecommendation[];
   dailyForecast: DailyForecastItem[];
   fastMoving: FastMovingItem[];
   slowMoving: SlowMovingItem[];
@@ -319,7 +331,8 @@ export function generateDemoOrders(menuItems: MenuItem[]): Order[] {
  */
 export function generateInventoryInsights(
   orders: Order[],
-  menuItems: MenuItem[]
+  menuItems: MenuItem[],
+  actualPrepCounts: Record<string, number> = {}
 ): InventoryInsights {
   // ── Fallback to demo data when real data is too sparse ───────────────
   const isUsingDemoData = orders.length < MIN_REAL_ORDERS;
@@ -445,6 +458,23 @@ export function generateInventoryInsights(
     }
   );
 
+  // ── 2. Prep Recommendations ──────────────────────────────────────────
+  const prepRecommendations: PrepRecommendation[] = Object.entries(accum)
+    .map(([itemName, a]) => {
+      const historicalAvgDaily = a.totalQty / totalDays;
+      const expectedToday = historicalAvgDaily * dowMultiplier;
+      const recommendedQty = Math.ceil(expectedToday * 1.3);
+
+      return {
+        itemName,
+        expectedSales: Math.round(expectedToday * 10) / 10,
+        recommendedQty,
+        soldToday: a.todayQty,
+      };
+    })
+    .filter(item => item.recommendedQty > 0)
+    .sort((a, b) => b.recommendedQty - a.recommendedQty);
+
   // Sort forecast descending by soldToday for readability.
   dailyForecast.sort((a, b) => b.soldToday - a.soldToday);
 
@@ -516,7 +546,10 @@ export function generateInventoryInsights(
     // Simple heuristic: if today's velocity is significantly above average,
     // find the hour where cumulative exceeds a "typical prep" threshold.
     // We define "typical prep" as 1.3× the average daily total adjusted by DOW multiplier.
-    const typicalPrep = (a.totalQty / totalDays) * dowMultiplier * 1.3;
+    // If the user manually provided an actual prep count, we use that instead!
+    const heuristicPrep = (a.totalQty / totalDays) * dowMultiplier * 1.3;
+    const typicalPrep = actualPrepCounts[itemName] !== undefined ? actualPrepCounts[itemName] : heuristicPrep;
+    
     if (typicalPrep <= 0) continue;
 
     let cumulativeToday = a.todayQty;
@@ -558,6 +591,8 @@ export function generateInventoryInsights(
   for (const [itemName, a] of Object.entries(accum)) {
     const historicalAvgDaily = a.totalQty / totalDays;
     const expectedToday = historicalAvgDaily * dowMultiplier;
+    const manualPrep = actualPrepCounts[itemName];
+    
     let riskScore = 0;
     const reasons: string[] = [];
 
@@ -607,7 +642,7 @@ export function generateInventoryInsights(
   // Sort by riskScore descending.
   wastageAlerts.sort((a, b) => b.riskScore - a.riskScore);
 
-  // ── 6. Hourly Demand Heatmap ─────────────────────────────────────────
+  // ── 7. Hourly Demand Heatmap ─────────────────────────────────────────
   const hourlyDemand: Record<string, number[]> = {};
   for (const [itemName, a] of Object.entries(accum)) {
     hourlyDemand[itemName] = [...a.hourly];
@@ -615,6 +650,7 @@ export function generateInventoryInsights(
 
   // ── Assemble & return ────────────────────────────────────────────────
   return {
+    prepRecommendations,
     dailyForecast,
     fastMoving,
     slowMoving,

@@ -20,6 +20,7 @@ import {
 } from '../../intelligence/nlp';
 import { InventoryIntelligence } from './InventoryIntelligence';
 import { ReviewIntelligence } from './ReviewIntelligence';
+import { useStore } from '../../store/useStore';
 
 type Tab = 'inventory' | 'reviews';
 
@@ -31,6 +32,7 @@ interface IntelligenceDashboardProps {
 export function IntelligenceDashboard({ orders, menuItems }: IntelligenceDashboardProps) {
   const [activeTab, setActiveTab] = useState<Tab>('inventory');
   const [demoMode, setDemoMode] = useState(false);
+  const actualPrepCounts = useStore(s => s.actualPrepCounts);
 
   // Determine if we have enough real data
   const realOrderCount = orders.length;
@@ -46,8 +48,8 @@ export function IntelligenceDashboard({ orders, menuItems }: IntelligenceDashboa
     const effectiveOrders = demoMode || hasLimitedData
       ? [...orders, ...generateDemoOrders(menuItems)]
       : orders;
-    return generateInventoryInsights(effectiveOrders, menuItems);
-  }, [orders, menuItems, demoMode, hasLimitedData]);
+    return generateInventoryInsights(effectiveOrders, menuItems, actualPrepCounts);
+  }, [orders, menuItems, demoMode, hasLimitedData, actualPrepCounts]);
 
   const reviewInsights: ReviewInsights = useMemo(() => {
     const effectiveOrders = demoMode || hasLimitedFeedback
