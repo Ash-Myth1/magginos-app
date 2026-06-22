@@ -77,12 +77,33 @@ export function AdminDashboard({ onLogin }: AdminDashboardProps) {
   const isChef = currentUser.role === 'chef';
   const isDelivery = currentUser.role === 'delivery';
 
-  const completed = orders.filter((o) => o.status === 'Delivered');
+  // ── Tonight's session: 5 PM → 5 AM ──────────────────────────────────
+  // If we're before 5 AM, the session started YESTERDAY at 5 PM.
+  // If we're after 5 PM, the session started TODAY at 5 PM.
+  const now = new Date();
+  const h = now.getHours();
+  const sessionBase = new Date(now);
+  if (h < 5) sessionBase.setDate(sessionBase.getDate() - 1);
+  sessionBase.setHours(17, 0, 0, 0); // 5 PM
+  const sessionStart = sessionBase.getTime();
+  const sessionEnd = sessionStart + 12 * 60 * 60 * 1000; // +12 h = 5 AM
+
+  const tonightOrders = orders.filter(
+    (o) => o.timestamp >= sessionStart && o.timestamp < sessionEnd
+  );
+  const completed = tonightOrders.filter((o) => o.status === 'Delivered');
   const revenue = completed.reduce((s, o) => s + o.total, 0);
 
   const itemCounts: Record<string, number> = {};
   completed.forEach((o) => o.items.forEach((i) => { itemCounts[i.name] = (itemCounts[i.name] ?? 0) + i.qty; }));
-  const bestSeller = Object.entries(itemCounts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? 'No data yet';
+  const bestSeller = Object.entries(itemCounts).sort(([, a], [, b]) => b - a)[0]?.[0] ?? '—';
+
+  // The live feed should only show active orders (from any time, in case they are stuck)
+  // AND delivered orders from tonight's session only.
+  const feedOrders = orders.filter(o => 
+    o.status !== 'Delivered' || 
+    (o.timestamp >= sessionStart && o.timestamp < sessionEnd)
+  );
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-20 animate-in fade-in duration-500">
@@ -116,15 +137,16 @@ export function AdminDashboard({ onLogin }: AdminDashboardProps) {
       {isAdmin && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           {[
-            { icon: <IndianRupee size={24} />, color: 'bg-green-100 text-green-600', label: 'Gross Revenue', value: `₹${revenue}` },
-            { icon: <TrendingUp size={24} />, color: 'bg-blue-100 text-blue-600', label: 'Completed Orders', value: completed.length },
-            { icon: <Trophy size={24} />, color: 'bg-yellow-100 text-yellow-600', label: 'Best Seller', value: bestSeller },
-          ].map(({ icon, color, label, value }) => (
+            { icon: <IndianRupee size={24} />, color: 'bg-green-100 text-green-600', label: 'Gross Revenue', value: `₹${revenue}`, sub: "Tonight's session" },
+            { icon: <TrendingUp size={24} />, color: 'bg-blue-100 text-blue-600', label: 'Completed Orders', value: completed.length, sub: "Tonight's session" },
+            { icon: <Trophy size={24} />, color: 'bg-yellow-100 text-yellow-600', label: 'Best Seller', value: bestSeller, sub: "Tonight's session" },
+          ].map(({ icon, color, label, value, sub }) => (
             <div key={label} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5">
               <div className={`${color} p-4 rounded-2xl`}>{icon}</div>
               <div>
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{label}</p>
                 <h3 className="text-2xl font-black text-slate-800 leading-tight">{value}</h3>
+                <p className="text-[10px] font-bold text-slate-300 mt-0.5 uppercase tracking-wider">{sub}</p>
               </div>
             </div>
           ))}
@@ -191,12 +213,12 @@ export function AdminDashboard({ onLogin }: AdminDashboardProps) {
             </span>
           </h2>
           <span className="bg-orange-100 text-orange-700 font-black px-4 py-1.5 rounded-xl text-sm border border-orange-200 shadow-sm">
-            {orders.filter((o) => o.status !== 'Delivered').length} Active
+            {feedOrders.filter((o) => o.status !== 'Delivered').length} Active
           </span>
         </div>
 
         <div className="p-4 sm:p-6 grid gap-4 sm:gap-6">
-          {orders.length === 0 ? (
+          {feedOrders.length === 0 ? (
             <div className="text-center py-16 sm:py-20 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
               <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm">
                 <ChefHat size={32} className="text-slate-300" />
@@ -205,7 +227,7 @@ export function AdminDashboard({ onLogin }: AdminDashboardProps) {
               <p className="text-sm text-slate-400 font-medium mt-1">Waiting for cravings to roll in...</p>
             </div>
           ) : (
-            orders.map((order) => {
+            feedOrders.map((order) => {
               const isActive = order.status !== 'Delivered';
               const statusBadge: Record<string, string> = {
                 Received: 'bg-blue-100 text-blue-700 border-blue-200',

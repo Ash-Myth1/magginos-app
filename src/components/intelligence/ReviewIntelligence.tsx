@@ -61,6 +61,27 @@ export function ReviewIntelligence({ insights }: ReviewIntelligenceProps) {
   const positiveCount = insights.processedReviews.filter(r => r.status === 'Positive').length;
   const neutralCount = insights.processedReviews.filter(r => r.status === 'Neutral').length;
 
+  // ── Empty state: demo mode is OFF and no real reviews have come in yet ──
+  // Show a waiting state instead of the misleading "All Clear! 🎉" hero card.
+  if (!insights.isUsingDemoData && totalReviews === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-center justify-center py-20 text-center"
+      >
+        <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-5">
+          <MessageSquareText size={32} className="text-slate-300" />
+        </div>
+        <h4 className="font-black text-slate-700 text-lg mb-2">No Reviews Yet</h4>
+        <p className="text-sm text-slate-400 font-medium max-w-xs leading-relaxed">
+          Customer feedback will appear here once orders have been rated.
+          Toggle <span className="font-bold text-violet-500">Demo Data</span> above to preview what the dashboard looks like.
+        </p>
+      </motion.div>
+    );
+  }
+
   return (
     <div className="space-y-6">
 

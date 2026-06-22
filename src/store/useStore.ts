@@ -14,6 +14,22 @@ const DEFAULT_CUSTOMER_INFO: CustomerInfo = {
   paymentMethod: 'upi',
 };
 
+/**
+ * Compute the "logical day" key for a given Date using the 5 PM–5 AM session definition.
+ * Hours 0–4 (past midnight) belong to the *previous* calendar day's session.
+ * Hours 17–23 belong to the current calendar day's session.
+ */
+function getLogicalDayKey(d: Date = new Date()): string {
+  const shifted = new Date(d);
+  if (shifted.getHours() < 5) {
+    shifted.setDate(shifted.getDate() - 1);
+  }
+  const y = shifted.getFullYear();
+  const m = String(shifted.getMonth() + 1).padStart(2, '0');
+  const day = String(shifted.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 interface AppState {
   // ─── App ─────────────────────────────────────────────────────────────────
   isLoading: boolean;
@@ -35,6 +51,10 @@ interface AppState {
   showCheckout: boolean;
   showQRModal: boolean;
   pendingOrderData: Omit<Order, 'dbId'> | null;
+  /**
+   * Per-session sold counts: { [logicalDayKey]: { [itemName]: unitsSold } }
+   * Computed client-side from the live orders feed in useFirebaseSync.
+   */
   soldCounts: Record<string, Record<string, number>>;
 
   // ─── Order Tracking ──────────────────────────────────────────────────────
@@ -49,6 +69,11 @@ interface AppState {
   cartTotal: () => number;
   cartCount: () => number;
   getEffectiveOutOfStockIds: () => number[];
+  /**
+   * Returns the number of units available for ordering right now:
+   *   prepCount − unitsSoldThisSession
+   * Returns null when no prep count has been set (no inventory tracking for this item).
+   */
   getRemainingStock: (item: MenuItem) => number | null;
 
   // ─── Actions ─────────────────────────────────────────────────────────────
@@ -81,9 +106,6 @@ interface AppState {
   setSoldCountsSync: (counts: Record<string, Record<string, number>>) => void;
 }
 
-const initialPrepCountsRaw = localStorage.getItem('actualPrepCounts');
-const initialPrepCounts = initialPrepCountsRaw ? JSON.parse(initialPrepCountsRaw) : {};
-
 export const useStore = create<AppState>((set, get) => ({
   // ─── Initial State ───────────────────────────────────────────────────────
   isLoading: true,
@@ -102,29 +124,37 @@ export const useStore = create<AppState>((set, get) => ({
   showCheckout: false,
   showQRModal: false,
   pendingOrderData: null,
+  // soldCounts is fully managed by useFirebaseSync — no stale localStorage init
   soldCounts: {},
 
   showMyOrders: false,
   activeTrackingId: null,
   itemRatings: {},
-  
-  actualPrepCounts: initialPrepCounts,
+
+  // Firebase is the sole source of truth for prepCounts; no localStorage init
+  actualPrepCounts: {},
 
   // ─── Computed ────────────────────────────────────────────────────────────
   cartTotal: () => get().cart.reduce((sum, i) => sum + i.price * i.qty, 0),
   cartCount: () => get().cart.reduce((sum, i) => sum + i.qty, 0),
 
+  /**
+   * Available stock = prepCount − units already sold this session.
+   * Returns null when no prep count is tracked for the item.
+   */
   getRemainingStock: (item: MenuItem) => {
     const s = get();
-    const stock = s.actualPrepCounts[item.name];
-    if (stock === undefined) return null; // No explicit stock tracked
-    
-    return stock;
+    const prepCount = s.actualPrepCounts[item.name];
+    if (prepCount === undefined) return null; // No inventory tracking for this item
+
+    const todayKey = getLogicalDayKey();
+    const soldToday = s.soldCounts[todayKey]?.[item.name] ?? 0;
+    return Math.max(0, prepCount - soldToday);
   },
 
   getEffectiveOutOfStockIds: () => {
     const s = get();
-    
+
     const autoOutIds = s.menuItems
       .filter(item => {
         const remaining = s.getRemainingStock(item);
@@ -135,7 +165,7 @@ export const useStore = create<AppState>((set, get) => ({
       })
       .map(item => item.id)
       .filter(id => !(s.forceInStockIds || []).includes(id));
-      
+
     return Array.from(new Set([...s.outOfStockIds, ...autoOutIds]));
   },
 
@@ -158,18 +188,18 @@ export const useStore = create<AppState>((set, get) => ({
   addToCart: (item) =>
     set((s) => {
       if (!s.isStoreOpen || s.getEffectiveOutOfStockIds().includes(item.id)) return s;
-      
+
       const existing = s.cart.find((c) => c.id === item.id);
       const currentQty = existing ? existing.qty : 0;
-      
-      // Enforce actual inventory limit if tracked, plus a hard sanity limit of 10
+
+      // Enforce actual remaining stock (prep − sold) if tracked, plus a hard sanity cap of 10
       const remaining = s.getRemainingStock(item);
       const limit = remaining !== null ? Math.min(remaining, 10) : 10;
-      
+
       if (currentQty >= limit) {
-        return s; // Can't add more than limit
+        return s; // Can't add more than what's physically available
       }
-      
+
       if (existing) {
         return { cart: s.cart.map((c) => (c.id === item.id ? { ...c, qty: c.qty + 1 } : c)) };
       }
@@ -200,4 +230,5 @@ export const useStore = create<AppState>((set, get) => ({
 
   // ─── Intelligence ────────────────────────────────────────────────────────
   setActualPrepCountsSync: (counts) => set({ actualPrepCounts: counts }),
+  setSoldCountsSync: (counts) => set({ soldCounts: counts }),
 }));
