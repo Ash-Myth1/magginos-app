@@ -182,20 +182,20 @@ export function LandingPage() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: stage >= 6 ? 1 : 0, y: stage >= 6 ? 0 : -20 }}
         transition={{ delay: 0.5 }}
-        className="relative z-50 flex justify-between items-center p-4 sm:p-8"
+        className="relative z-50 flex justify-between items-center p-3 sm:p-8"
       >
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <img 
                 src="/logo.png" 
                 alt="Maggino's Logo" 
-                className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-lg" 
+                className="w-7 h-7 sm:w-10 sm:h-10 object-contain drop-shadow-lg" 
             />
-            <span className="font-black text-xl sm:text-2xl tracking-tight text-white uppercase">Maggino's</span>
+            <span className="font-black text-lg sm:text-2xl tracking-tight text-white uppercase mt-0.5">Maggino's</span>
         </div>
         
         <button 
           onClick={() => navigate('/order')}
-          className="bg-orange-500 hover:bg-slate-50 text-slate-900 px-4 py-2 sm:px-6 sm:py-3 rounded-full font-black text-xs sm:text-sm uppercase tracking-wider transition-colors shadow-lg flex items-center gap-1 sm:gap-2 group shrink-0"
+          className="bg-orange-500 hover:bg-slate-50 text-slate-900 px-3.5 py-1.5 sm:px-6 sm:py-3 rounded-full font-black text-[10px] sm:text-sm uppercase tracking-wider transition-colors shadow-lg flex items-center gap-1 sm:gap-2 group shrink-0 whitespace-nowrap"
         >
           Order Now <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
         </button>
