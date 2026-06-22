@@ -40,10 +40,20 @@ export const OrderService = {
   updateStatus: async (orderId, newStatus, orderData) => {
     try {
       const orderRef = doc(db, "orders", orderId);
-      await updateDoc(orderRef, { status: newStatus });
+      const now = Date.now();
+      const payload = { status: newStatus };
+      
+      if (newStatus === 'Cooking') payload['timestamps.acceptedAt'] = now;
+      else if (newStatus === 'Out for Delivery' || newStatus === 'Ready for Pickup') payload['timestamps.readyAt'] = now;
+      else if (newStatus === 'Delivered') payload['timestamps.deliveredAt'] = now;
 
-      if (newStatus === 'Delivered' && orderData.customer.email) {
-        const statusText = orderData.orderType === 'delivery' ? 'delivered to your room' : 'picked up';
+      await updateDoc(orderRef, payload);
+
+      if ((newStatus === 'Delivered' || newStatus === 'Ready for Pickup') && orderData?.customer?.email) {
+        const statusText = newStatus === 'Ready for Pickup' 
+          ? 'ready to be picked up' 
+          : (orderData.orderType === 'delivery' ? 'delivered to your room' : 'picked up');
+          
         emailjs.send(
           emailConfig.serviceId,
           emailConfig.deliveredTemplate,
