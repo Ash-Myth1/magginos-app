@@ -35,6 +35,7 @@ interface AppState {
   showCheckout: boolean;
   showQRModal: boolean;
   pendingOrderData: Omit<Order, 'dbId'> | null;
+  soldCounts: Record<string, Record<string, number>>;
 
   // ─── Order Tracking ──────────────────────────────────────────────────────
   showMyOrders: boolean;
@@ -77,6 +78,7 @@ interface AppState {
   clearItemRatings: () => void;
 
   setActualPrepCountsSync: (counts: Record<string, number>) => void;
+  setSoldCountsSync: (counts: Record<string, Record<string, number>>) => void;
 }
 
 const initialPrepCountsRaw = localStorage.getItem('actualPrepCounts');
@@ -100,6 +102,7 @@ export const useStore = create<AppState>((set, get) => ({
   showCheckout: false,
   showQRModal: false,
   pendingOrderData: null,
+  soldCounts: {},
 
   showMyOrders: false,
   activeTrackingId: null,
@@ -124,17 +127,7 @@ export const useStore = create<AppState>((set, get) => ({
     };
     
     const today = logicalDay(Date.now());
-    let soldToday = 0;
-    
-    for (const order of s.orders) {
-      if (logicalDay(order.timestamp) === today) {
-        for (const orderItem of order.items) {
-          if (orderItem.name === item.name) {
-            soldToday += orderItem.qty;
-          }
-        }
-      }
-    }
+    const soldToday = s.soldCounts[today]?.[item.name] || 0;
     
     return Math.max(0, prep - soldToday);
   },
