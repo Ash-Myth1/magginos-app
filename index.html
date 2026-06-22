@@ -28,6 +28,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="error-overlay" style="color: red; padding: 20px; font-family: monospace; white-space: pre-wrap; font-weight: bold;"></div>
+    <script>
+      window.onerror = function(message, source, lineno, colno, error) {
+        document.getElementById('error-overlay').innerText += '\nERROR: ' + message + '\n' + (error && error.stack ? error.stack : '');
+      };
+      window.onunhandledrejection = function(event) {
+        document.getElementById('error-overlay').innerText += '\nPROMISE ERROR: ' + event.reason;
+      };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
 
     <script>
