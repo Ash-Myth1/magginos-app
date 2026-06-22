@@ -96,7 +96,7 @@ export function IntelligenceDashboard({ orders, menuItems }: IntelligenceDashboa
             {isShowingDemo && (
               <span className="flex items-center gap-1.5 bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-amber-500/30">
                 <AlertTriangle size={12} />
-                {demoMode ? 'Demo Mode' : 'Includes Simulated Data'}
+                {userDemoMode !== null ? 'Demo Mode' : 'Includes Simulated Data'}
               </span>
             )}
             <button
