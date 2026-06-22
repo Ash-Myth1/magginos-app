@@ -163,6 +163,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   setMenuItems: (menuItems) => set({ menuItems }),
   setOutOfStockIds: (outOfStockIds) => set({ outOfStockIds }),
+  setForceInStockIds: (forceInStockIds) => set({ forceInStockIds }),
   setOrders: (orders) => set({ orders }),
 
   setCurrentUser: (currentUser) => set({ currentUser }),
