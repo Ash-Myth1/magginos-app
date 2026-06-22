@@ -20,43 +20,14 @@ export const OrderService = {
   // 1. Place a new order with stock validation
   placeOrder: async (orderData) => {
     try {
-      const inventoryRef = doc(db, 'settings', 'inventory');
-      const newOrderRef = doc(collection(db, 'orders'));
-
-      await runTransaction(db, async (transaction) => {
-        const invSnap = await transaction.get(inventoryRef);
-        const invData = invSnap.exists() ? invSnap.data() : {};
-        
-        const today = logicalDay(Date.now());
-        const prepCounts = invData.prepCounts || {};
-        const soldCounts = invData.soldCounts || {};
-        const todaySold = soldCounts[today] || {};
-        
-        // Validate stock limits for all items
-        for (const item of orderData.items) {
-          if (item.qty > 10) {
-            throw new Error(`Sanity limit exceeded: You cannot order more than 10 of a single item (${item.name}).`);
-          }
-          
-          const stock = prepCounts[item.name];
-          if (stock !== undefined) {
-            if (item.qty > stock) {
-              throw new Error(`Sorry, we only have ${stock}x ${item.name} left! Please reduce quantity.`);
-            }
-            // Decrement the absolute stock!
-            prepCounts[item.name] = stock - item.qty;
-          }
-          
-          // Still track sold counts for Admin UI Analytics
-          const sold = todaySold[item.name] || 0;
-          todaySold[item.name] = sold + item.qty;
+      // Validate hard limit locally
+      for (const item of orderData.items) {
+        if (item.qty > 10) {
+          throw new Error(`Sanity limit exceeded: You cannot order more than 10 of a single item (${item.name}).`);
         }
-        
-        soldCounts[today] = todaySold;
-        
-        transaction.set(inventoryRef, { prepCounts, soldCounts }, { merge: true });
-        transaction.set(newOrderRef, { ...orderData, dbId: newOrderRef.id });
-      });
+      }
+      
+      const docRef = await addDoc(collection(db, "orders"), orderData);
       
       // Fire confirmation email asynchronously
       if (!emailConfig.serviceId) {
@@ -75,7 +46,7 @@ export const OrderService = {
         ).catch(err => console.error("EmailJS Error:", err));
       }
 
-      return newOrderRef.id;
+      return docRef.id;
     } catch (error) {
       console.error("Database Error:", error);
       throw error;
