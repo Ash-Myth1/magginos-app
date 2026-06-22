@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import type { InventoryInsights } from '../../intelligence/inventory';
 import { useStore } from '../../store/useStore';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 interface InventoryIntelligenceProps {
   insights: InventoryInsights;
@@ -47,7 +49,16 @@ function confidenceBadge(confidence: 'high' | 'medium' | 'low'): string {
 export function InventoryIntelligence({ insights }: InventoryIntelligenceProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>('prep');
   const actualPrepCounts = useStore(s => s.actualPrepCounts);
-  const setActualPrepCount = useStore(s => s.setActualPrepCount);
+
+  const updatePrepCount = async (itemName: string, val?: number) => {
+    const newCounts = { ...actualPrepCounts };
+    if (val === undefined) {
+      delete newCounts[itemName];
+    } else {
+      newCounts[itemName] = val;
+    }
+    await setDoc(doc(db, 'settings', 'inventory'), { prepCounts: newCounts }, { merge: true });
+  };
 
   const toggleSection = (section: string) => {
     setExpandedSection(prev => prev === section ? null : section);
@@ -155,13 +166,13 @@ export function InventoryIntelligence({ insights }: InventoryIntelligenceProps) 
                               onChange={(e) => {
                                 const val = e.target.value === '' ? undefined : parseInt(e.target.value, 10);
                                 if (val !== undefined && !isNaN(val)) {
-                                  setActualPrepCount(item.itemName, val);
+                                  updatePrepCount(item.itemName, val);
                                 } else if (e.target.value === '') {
                                   // Hack: If they clear it, we might want to unset it. 
                                   // For now, if empty, we could delete it from the store or set to undefined (though typing requires number).
                                   // Zustand store expects number. We can just pass undefined and ignore type slightly or handle it.
                                   // Actually let's just pass undefined as any.
-                                  setActualPrepCount(item.itemName, undefined as any);
+                                  updatePrepCount(item.itemName, undefined as any);
                                 }
                               }}
                               className="w-16 px-2 py-1 text-right text-lg font-black text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-shadow hide-arrows"

@@ -27,6 +27,8 @@ export function useFirebaseSync() {
     setOrders,
     setLoadingError,
     setIsLoading,
+    setForceInStockIds,
+    setActualPrepCountsSync,
   } = useStore();
 
   // Track readiness of both auth and menu so we only hide the skeleton
@@ -73,12 +75,21 @@ export function useFirebaseSync() {
     const unsub = onSnapshot(
       doc(db, 'settings', 'inventory'),
       (snap) => {
-        if (snap.exists()) setOutOfStockIds(snap.data().ids ?? []);
+        if (snap.exists()) {
+          const data = snap.data();
+          setOutOfStockIds(data.ids ?? []);
+          setForceInStockIds(data.forceInStockIds ?? []);
+          setActualPrepCountsSync(data.prepCounts ?? {});
+        } else {
+          setOutOfStockIds([]);
+          setForceInStockIds([]);
+          setActualPrepCountsSync({});
+        }
       },
       (err) => console.error('[Inventory sync]', err)
     );
     return unsub;
-  }, [setOutOfStockIds]);
+  }, [setOutOfStockIds, setForceInStockIds, setActualPrepCountsSync]);
 
   // ── 3. Auth state → user profile + role lookup ─────────────────────────
   useEffect(() => {

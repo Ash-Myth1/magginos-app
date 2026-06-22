@@ -23,6 +23,7 @@ interface AppState {
   // ─── Data ────────────────────────────────────────────────────────────────
   menuItems: MenuItem[];
   outOfStockIds: number[];
+  forceInStockIds: number[];
   orders: Order[];
 
   // ─── Auth ────────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ interface AppState {
 
   setMenuItems: (items: MenuItem[]) => void;
   setOutOfStockIds: (ids: number[]) => void;
+  setForceInStockIds: (ids: number[]) => void;
   setOrders: (orders: Order[]) => void;
 
   setCurrentUser: (user: CrewUser | null) => void;
@@ -189,15 +191,5 @@ export const useStore = create<AppState>((set, get) => ({
   clearItemRatings: () => set({ itemRatings: {} }),
 
   // ─── Intelligence ────────────────────────────────────────────────────────
-  setActualPrepCount: (itemName, count) =>
-    set((s) => {
-      const newCounts = { ...s.actualPrepCounts };
-      if (count === undefined) {
-        delete newCounts[itemName];
-      } else {
-        newCounts[itemName] = count;
-      }
-      localStorage.setItem('actualPrepCounts', JSON.stringify(newCounts));
-      return { actualPrepCounts: newCounts };
-    }),
+  setActualPrepCountsSync: (counts) => set({ actualPrepCounts: counts }),
 }));

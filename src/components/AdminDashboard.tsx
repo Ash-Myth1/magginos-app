@@ -22,14 +22,24 @@ interface AdminDashboardProps {
 }
 
 export function AdminDashboard({ onLogin }: AdminDashboardProps) {
-  const { currentUser, isStoreOpen, setIsStoreOpen, menuItems, outOfStockIds, orders, getEffectiveOutOfStockIds } = useStore();
+  const { currentUser, isStoreOpen, setIsStoreOpen, menuItems, outOfStockIds, forceInStockIds, orders, getEffectiveOutOfStockIds } = useStore();
   const effectiveOutIds = getEffectiveOutOfStockIds();
 
   const toggleStock = async (itemId: number) => {
-    const updated = outOfStockIds.includes(itemId)
-      ? outOfStockIds.filter((id) => id !== itemId)
-      : [...outOfStockIds, itemId];
-    await setDoc(doc(db, 'settings', 'inventory'), { ids: updated });
+    let newOut = [...outOfStockIds];
+    let newForce = [...(forceInStockIds || [])];
+
+    if (effectiveOutIds.includes(itemId)) {
+      // Currently OUT. Make it IN.
+      newOut = newOut.filter(id => id !== itemId);
+      if (!newForce.includes(itemId)) newForce.push(itemId);
+    } else {
+      // Currently IN. Make it OUT.
+      if (!newOut.includes(itemId)) newOut.push(itemId);
+      newForce = newForce.filter(id => id !== itemId);
+    }
+    
+    await setDoc(doc(db, 'settings', 'inventory'), { ids: newOut, forceInStockIds: newForce }, { merge: true });
   };
 
   // ── State 1: Not logged in ───────────────────────────────────────────────
@@ -136,15 +146,20 @@ export function AdminDashboard({ onLogin }: AdminDashboardProps) {
             {menuItems.map((item) => {
               const isManualOut = outOfStockIds.includes(item.id);
               const isAutoOut = !isManualOut && effectiveOutIds.includes(item.id);
+              const isForceIn = (forceInStockIds || []).includes(item.id);
               const isOut = isManualOut || isAutoOut;
               
               return (
-                <div key={item.id} className={`flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-slate-100 transition-colors ${isAutoOut ? 'ring-2 ring-orange-500/20' : ''}`}>
+                <div key={item.id} className={`flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-slate-100 transition-colors ${isAutoOut ? 'ring-2 ring-orange-500/20' : isForceIn ? 'ring-2 ring-indigo-500/20' : ''}`}>
                   <div>
                     <p className="font-bold text-sm text-slate-800 leading-tight">{item.name}</p>
                     {isAutoOut ? (
                       <p className="text-[10px] font-black mt-1 uppercase tracking-wider text-orange-500 flex items-center gap-1">
                         <Zap size={10} /> Auto-Pilot Empty
+                      </p>
+                    ) : isForceIn ? (
+                      <p className="text-[10px] font-black mt-1 uppercase tracking-wider text-indigo-500 flex items-center gap-1">
+                        <Zap size={10} /> Forced In-Stock
                       </p>
                     ) : (
                       <p className={`text-[10px] font-black mt-1 uppercase tracking-wider ${isOut ? 'text-red-500' : 'text-green-500'}`}>
@@ -154,7 +169,7 @@ export function AdminDashboard({ onLogin }: AdminDashboardProps) {
                   </div>
                   <button
                     onClick={() => toggleStock(item.id)}
-                    className={`w-14 h-7 rounded-full p-1 transition-all relative shadow-inner ${isManualOut ? 'bg-red-200' : isAutoOut ? 'bg-orange-200' : 'bg-green-500'}`}
+                    className={`w-14 h-7 rounded-full p-1 transition-all relative shadow-inner ${isManualOut ? 'bg-red-200' : isAutoOut ? 'bg-orange-200' : isForceIn ? 'bg-indigo-500' : 'bg-green-500'}`}
                   >
                     <div className={`bg-white w-5 h-5 rounded-full shadow-md transition-all absolute top-1 ${isOut ? 'left-1' : 'left-8'}`} />
                   </button>
