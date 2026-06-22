@@ -1,6 +1,6 @@
 // src/intelligence/nlp.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// Multi-Aspect Sentiment Analysis Engine for Maggino's (late-night, 11 PM–5 AM)
+// Multi-Aspect Sentiment Analysis Engine for Maggino's (5 PM–5 AM session)
 // Pure TypeScript · No external libraries · Keyword-based NLP with negation
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -337,9 +337,15 @@ function scoreSentiment(clauseLower: string): SentimentStatus {
 
 /**
  * Calibrate text-derived sentiment with a 1-5 star rating.
- * - 1-2 stars → bias toward Negative (override Neutral/Positive)
- * - 3 stars   → keep text-based analysis unchanged
- * - 4-5 stars → bias toward Positive (override Neutral/Negative)
+ *
+ * Acts as a **bias** (not an absolute override) so that multi-aspect complaints
+ * survive even on highly-rated orders:
+ * - 1-2 stars: only flip text-Positive → Negative (already-Negative/Neutral kept)
+ * - 3 stars:   trust the text entirely
+ * - 4-5 stars: only soften text-Negative → Neutral (Positive kept, Neutral kept)
+ *
+ * This ensures a 5-star review saying "packaging was crushed" still shows up
+ * as a Neutral packaging issue rather than being silently forced to Positive.
  */
 function calibrateWithRating(
   textSentiment: SentimentStatus,
@@ -348,12 +354,14 @@ function calibrateWithRating(
   if (rating <= 0 || rating > 5) return textSentiment; // no valid rating
 
   if (rating <= 2) {
-    // Low star: text Positive is unlikely — override to Negative
-    return textSentiment === 'Positive' ? 'Negative' : textSentiment === 'Neutral' ? 'Negative' : 'Negative';
+    // Low star: a Positive text reading is almost certainly wrong — flip it.
+    // Neutral and already-Negative stay as-is (they're already bad).
+    return textSentiment === 'Positive' ? 'Negative' : textSentiment;
   }
   if (rating >= 4) {
-    // High star: text Negative is unlikely — override to Positive
-    return textSentiment === 'Negative' ? 'Positive' : textSentiment === 'Neutral' ? 'Positive' : 'Positive';
+    // High star: soften a Negative reading to Neutral — but don't flip to Positive.
+    // The customer still mentioned something bad; we just temper the severity.
+    return textSentiment === 'Negative' ? 'Neutral' : textSentiment;
   }
   // rating === 3 → trust the text
   return textSentiment;
@@ -451,7 +459,14 @@ export function analyzeReviewText(
 export function generateReviewInsights(orders: Order[], isDemoMode?: boolean): ReviewInsights {
   const processedReviews: ProcessedReview[] = [];
 
-  // ── Step 1: Extract aspect-level reviews from real order data ──────────
+  // ── Step 1: Build orderId → timestamp map from real orders ─────────────
+  // Used later for sorting reviews most-recent-first and for hourly issues.
+  const orderTimestampMap = new Map<string, number>();
+  for (const order of orders) {
+    orderTimestampMap.set(order.displayId, order.timestamp);
+  }
+
+  // ── Step 2: Extract aspect-level reviews from real order data ──────────
   for (const order of orders) {
     for (const item of order.items) {
       const feedbackText = (item.feedback ?? '').trim();
@@ -460,7 +475,9 @@ export function generateReviewInsights(orders: Order[], isDemoMode?: boolean): R
       const aspects = analyzeReviewText(feedbackText);
 
       for (const aspect of aspects) {
-        // Calibrate sentiment with star rating when available
+        // Calibrate sentiment with star rating when available.
+        // calibrateWithRating is a bias, not an absolute override — multi-aspect
+        // complaints on highly-rated orders are preserved.
         const calibrated =
           item.rating > 0
             ? calibrateWithRating(aspect.status, item.rating)
@@ -477,26 +494,35 @@ export function generateReviewInsights(orders: Order[], isDemoMode?: boolean): R
     }
   }
 
-  // ── Step 2: Demo-mode fallback ────────────────────────────────────────
+  // ── Step 3: Demo-mode fallback ────────────────────────────────────────
   const isUsingDemoData = isDemoMode !== undefined ? isDemoMode : processedReviews.length < 5;
-  const reviewsForAnalysis = isUsingDemoData
+  const combinedReviews = isUsingDemoData
     ? [...generateDemoReviews(), ...processedReviews]
     : processedReviews;
 
-  // ── Step 3: Build topic summaries ─────────────────────────────────────
+  // ── Step 4: Sort reviews most-recent-first using real timestamps ───────
+  // Real reviews are sorted by order timestamp. Demo reviews (no timestamp
+  // match) receive a value of 0 and naturally sink to the bottom.
+  const reviewsForAnalysis = combinedReviews.slice().sort((a, b) => {
+    const tsA = orderTimestampMap.get(a.orderId) ?? 0;
+    const tsB = orderTimestampMap.get(b.orderId) ?? 0;
+    return tsB - tsA; // descending — most recent first
+  });
+
+  // ── Step 5: Build topic summaries ─────────────────────────────────────
   const topicSummary = buildTopicSummary(reviewsForAnalysis);
 
-  // ── Step 4: Time-aware hourly issue aggregation ───────────────────────
+  // ── Step 6: Time-aware hourly issue aggregation ───────────────────────
   const hourlyIssues = isUsingDemoData
     ? buildDemoHourlyIssues()
     : buildHourlyIssues(orders, processedReviews);
 
-  // ── Step 5: Determine biggest issue ───────────────────────────────────
+  // ── Step 7: Determine biggest issue ───────────────────────────────────
   const biggestIssue = determineBiggestIssue(topicSummary, hourlyIssues);
 
   return {
     biggestIssue,
-    processedReviews: reviewsForAnalysis.slice().reverse(), // latest first
+    processedReviews: reviewsForAnalysis, // already sorted most-recent-first
     topicSummary,
     hourlyIssues,
     isUsingDemoData,
@@ -537,7 +563,7 @@ function buildTopicSummary(reviews: ProcessedReview[]): TopicSummary[] {
  * Group negative reviews by the hour they were placed (using `order.timestamp`).
  * Produces insight like "Delivery delays spike after 1 AM".
  *
- * Operating hours are 11 PM – 5 AM, so we focus on those hours.
+ * Operating hours are 5 PM – 5 AM, so we focus on those hours.
  */
 function buildHourlyIssues(
   orders: Order[],
@@ -578,15 +604,22 @@ function buildHourlyIssues(
 }
 
 /**
- * Build demo hourly issues that illustrate typical late-night patterns.
+ * Build demo hourly issues that illustrate typical patterns across the full
+ * 5 PM – 5 AM operating session.
  */
 function buildDemoHourlyIssues(): HourlyIssue[] {
   return [
-    { hour: '1 AM', topic: 'Delivery Time', count: 4 },
-    { hour: '2 AM', topic: 'Delivery Time', count: 3 },
-    { hour: '12 AM', topic: 'Food Quality', count: 2 },
-    { hour: '3 AM', topic: 'Packaging', count: 1 },
-    { hour: '11 PM', topic: 'Service', count: 1 },
+    // Evening warm-up (5 PM – 11 PM)
+    { hour: '7 PM',  topic: 'Service',          count: 1 },
+    { hour: '9 PM',  topic: 'Value for Money',  count: 1 },
+    { hour: '11 PM', topic: 'Portion Size',     count: 1 },
+    // Peak hours (midnight – 2 AM)
+    { hour: '12 AM', topic: 'Food Quality',     count: 2 },
+    { hour: '1 AM',  topic: 'Delivery Time',    count: 4 },
+    { hour: '2 AM',  topic: 'Delivery Time',    count: 3 },
+    // Late tail (3 AM – 4 AM)
+    { hour: '3 AM',  topic: 'Packaging',        count: 1 },
+    { hour: '4 AM',  topic: 'Food Quality',     count: 1 },
   ];
 }
 

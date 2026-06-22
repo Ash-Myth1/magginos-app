@@ -2,7 +2,7 @@
 // Visual dashboard panel for inventory forecasting, stockout alerts, and demand analytics.
 // Desktop-first design with CSS-only charts and premium glassmorphic cards.
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Flame, Turtle, AlertTriangle, TrendingUp, TrendingDown,
@@ -48,9 +48,18 @@ function confidenceBadge(confidence: 'high' | 'medium' | 'low'): string {
 
 export function InventoryIntelligence({ insights }: InventoryIntelligenceProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>('prep');
+  /**
+   * Local string values for each prep count input while the user is typing.
+   * We only write to Firestore on blur — not on every keystroke.
+   */
+  const [localInputs, setLocalInputs] = useState<Record<string, string>>({});
   const actualPrepCounts = useStore(s => s.actualPrepCounts);
 
-  const updatePrepCount = async (itemName: string, val?: number) => {
+  /**
+   * Persist a prep count change to Firestore.
+   * Passing `undefined` removes the item from tracking.
+   */
+  const updatePrepCount = useCallback(async (itemName: string, val: number | undefined) => {
     const newCounts = { ...actualPrepCounts };
     if (val === undefined) {
       delete newCounts[itemName];
@@ -58,7 +67,29 @@ export function InventoryIntelligence({ insights }: InventoryIntelligenceProps) 
       newCounts[itemName] = val;
     }
     await setDoc(doc(db, 'settings', 'inventory'), { prepCounts: newCounts }, { merge: true });
-  };
+  }, [actualPrepCounts]);
+
+  /** Called when the user finishes editing a prep count field. */
+  const handlePrepBlur = useCallback((itemName: string, rawValue: string) => {
+    // Always clear the local input so the field reverts to the Firebase-synced value
+    setLocalInputs(prev => {
+      const next = { ...prev };
+      delete next[itemName];
+      return next;
+    });
+
+    const trimmed = rawValue.trim();
+    if (trimmed === '') {
+      // Empty → remove from tracked prep counts
+      updatePrepCount(itemName, undefined);
+    } else {
+      const parsed = parseInt(trimmed, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        updatePrepCount(itemName, parsed);
+      }
+      // If non-numeric garbage was typed, we just drop it (local input already cleared)
+    }
+  }, [updatePrepCount]);
 
   const toggleSection = (section: string) => {
     setExpandedSection(prev => prev === section ? null : section);
@@ -158,23 +189,23 @@ export function InventoryIntelligence({ insights }: InventoryIntelligenceProps) 
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">In Stock:</span>
-                            <input 
+                            <input
                               type="number"
                               min="0"
                               placeholder={item.recommendedQty.toString()}
-                              value={actualPrepCounts[item.itemName] ?? ''}
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? undefined : parseInt(e.target.value, 10);
-                                if (val !== undefined && !isNaN(val)) {
-                                  updatePrepCount(item.itemName, val);
-                                } else if (e.target.value === '') {
-                                  // Hack: If they clear it, we might want to unset it. 
-                                  // For now, if empty, we could delete it from the store or set to undefined (though typing requires number).
-                                  // Zustand store expects number. We can just pass undefined and ignore type slightly or handle it.
-                                  // Actually let's just pass undefined as any.
-                                  updatePrepCount(item.itemName, undefined as any);
-                                }
-                              }}
+                              // Show the local draft while typing; fall back to the Firebase-synced value
+                              value={
+                                localInputs[item.itemName] !== undefined
+                                  ? localInputs[item.itemName]
+                                  : (actualPrepCounts[item.itemName] !== undefined
+                                      ? String(actualPrepCounts[item.itemName])
+                                      : '')
+                              }
+                              onChange={(e) =>
+                                // Only update local state — no Firestore write on each keystroke
+                                setLocalInputs(prev => ({ ...prev, [item.itemName]: e.target.value }))
+                              }
+                              onBlur={(e) => handlePrepBlur(item.itemName, e.target.value)}
                               className="w-16 px-2 py-1 text-right text-lg font-black text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-shadow hide-arrows"
                             />
                           </div>

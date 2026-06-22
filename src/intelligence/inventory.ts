@@ -1,7 +1,7 @@
 // src/intelligence/inventory.ts
 // ─────────────────────────────────────────────────────────────────────────────
 // Inventory Forecasting Engine for Maggino's — a late-night restaurant
-// operating from 11 PM to 5 AM.
+// operating from 5 PM to 5 AM (full 12-hour session).
 //
 // This module produces actionable inventory insights from order history:
 //   • Daily sales forecasts per menu item
@@ -95,13 +95,14 @@ export interface InventoryInsights {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 /**
- * Operating hours expressed as an ordered sequence that wraps past midnight.
- * Index 0 is the *start* of the night (23 = 11 PM), last is 4 (= 4 AM–5 AM).
+ * Operating hours for the full 5 PM–5 AM session, expressed as an ordered
+ * sequence that spans two calendar days.
+ * Index 0 is the session start (17 = 5 PM), last is 4 (4 AM–5 AM).
  */
-const OPERATING_HOURS: readonly number[] = [23, 0, 1, 2, 3, 4] as const;
+const OPERATING_HOURS: readonly number[] = [17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4] as const;
 
 /** Total length of a single operating window in hours. */
-const WINDOW_LENGTH = OPERATING_HOURS.length; // 6 hours
+const WINDOW_LENGTH = OPERATING_HOURS.length; // 12 hours
 
 /** Minimum real orders required before we trust real data over demo data. */
 const MIN_REAL_ORDERS = 10;
@@ -135,14 +136,16 @@ function formatHourRange(h: number): string {
 
 /**
  * Return the calendar-date string (YYYY-MM-DD) in the restaurant's "logical
- * day" perspective.  Because the window crosses midnight, an order at 1 AM on
- * June 15 belongs to the *June 14* operating session.  We map hours 0-4 back
- * to the previous calendar day.
+ * day" perspective using the 5 PM–5 AM session definition.
+ *
+ * Hours 0–4 (early morning, still in the night session) are mapped back to
+ * the *previous* calendar day so they group with the 5 PM session start.
+ * Hours 17–23 already belong to the current calendar day.
  */
 function logicalDay(timestamp: number): string {
   const d = new Date(timestamp);
   // If the real hour is 0–4 (after midnight but still in the window),
-  // subtract one calendar day so it groups with the 11 PM start.
+  // subtract one calendar day so it groups with the 5 PM start.
   if (d.getHours() < 5) {
     d.setDate(d.getDate() - 1);
   }
@@ -158,8 +161,9 @@ function hourOf(timestamp: number): number {
 }
 
 /**
- * How far (0.0 – 1.0) into the current operating window we are right now.
- * Returns 0 outside operating hours, 1.0 at the very end (5 AM).
+ * How far (0.0 – 1.0) into the current operating window (5 PM–5 AM) we are.
+ * Returns 0 when outside the operating window (i.e. between 5 AM and 5 PM).
+ * Returns 1.0 at the very end (5 AM).
  */
 function windowProgress(): number {
   const now = new Date();
@@ -195,7 +199,7 @@ function seededRandom(seed: number): () => number {
 
 /**
  * Create ~50 realistic synthetic orders spread across 3–5 nights within the
- * 11 PM – 5 AM window.
+ * 5 PM – 5 AM window.
  *
  * Realism levers:
  * - Popularity follows a power-law: a few items dominate.
@@ -234,23 +238,29 @@ export function generateDemoOrders(menuItems: MenuItem[]): Order[] {
   const baseDate = new Date();
   // Start from (DEMO_DAY_SPAN - 1) days ago.
   baseDate.setDate(baseDate.getDate() - (DEMO_DAY_SPAN - 1));
-  baseDate.setHours(23, 0, 0, 0);
+  baseDate.setHours(17, 0, 0, 0); // Session starts at 5 PM
 
   for (let ordIdx = 0; ordIdx < DEMO_ORDER_COUNT; ordIdx++) {
     // Pick a random night (0 .. DEMO_DAY_SPAN-1).
     const nightOffset = Math.floor(rng() * DEMO_DAY_SPAN);
 
     // Pick an hour within the window, biased toward midnight–1 AM.
-    // We sample from a triangular-ish distribution peaking at hour index 1 (midnight).
+    // We sample from a triangular-ish distribution peaking at midnight.
     const hourBias = (): number => {
       const u = rng();
-      // Bias: 40 % chance of midnight or 1 AM
-      if (u < 0.2) return 23;
-      if (u < 0.45) return 0;
-      if (u < 0.65) return 1;
-      if (u < 0.8) return 2;
-      if (u < 0.92) return 3;
-      return 4;
+      // Distribution across the 12-hour window (17 PM → 5 AM)
+      if (u < 0.05) return 17; // early evening — lightest traffic
+      if (u < 0.10) return 18;
+      if (u < 0.16) return 19;
+      if (u < 0.23) return 20;
+      if (u < 0.32) return 21;
+      if (u < 0.45) return 22;
+      if (u < 0.60) return 23; // ramp up as the night gets going
+      if (u < 0.72) return 0;  // midnight peak
+      if (u < 0.82) return 1;
+      if (u < 0.89) return 2;
+      if (u < 0.95) return 3;
+      return 4; // tail end
     };
     const hour = hourBias();
     const minute = Math.floor(rng() * 60);
@@ -407,7 +417,16 @@ export function generateInventoryInsights(
   }
 
   const totalDays = Math.max(1, allDays.size);
-  const progress = windowProgress() || 0.01; // avoid division by zero
+
+  /**
+   * windowProgress() returns 0 when we're outside operating hours (5 AM – 5 PM).
+   * In that case we use the expected daily average as the projection instead of
+   * extrapolating from zero sales — avoiding the 100× inflation bug.
+   */
+  const rawProgress = windowProgress();
+  const isInsideWindow = rawProgress > 0;
+  // Use a tiny floor only for the division guard when we ARE inside the window.
+  const progress = isInsideWindow ? Math.max(rawProgress, 0.01) : 1;
 
   // ── Day-of-Week Seasonality Multiplier ───────────────────────────────
   const uniqueDays = Array.from(allDays);
@@ -428,7 +447,7 @@ export function generateInventoryInsights(
     dowTotals[dow] += dailyVolume[dayStr] || 0;
   }
 
-  const overallAvgVolume = uniqueDays.length > 0 
+  const overallAvgVolume = uniqueDays.length > 0
     ? Object.values(dailyVolume).reduce((a, b) => a + b, 0) / uniqueDays.length
     : 1;
 
@@ -445,11 +464,20 @@ export function generateInventoryInsights(
     ([itemName, a]) => {
       const avgDaily = a.totalQty / totalDays;
       const expectedToday = avgDaily * dowMultiplier;
-      
-      const projectedTotal =
-        a.todayQty > 0
-          ? Math.round((a.todayQty / progress) * 10) / 10
-          : expectedToday;
+
+      let projectedTotal: number;
+      if (!isInsideWindow) {
+        // Outside operating hours (5 AM–5 PM): show the expected forecast for
+        // tonight — not an extrapolation from today's (non-existent) sales.
+        projectedTotal = expectedToday;
+      } else if (a.todayQty > 0) {
+        // Inside the window with real sales: extrapolate from current pace.
+        projectedTotal = Math.round((a.todayQty / progress) * 10) / 10;
+      } else {
+        // Inside the window but no sales yet: fall back to historical expectation.
+        projectedTotal = expectedToday;
+      }
+
       return {
         itemName,
         soldToday: a.todayQty,
@@ -479,7 +507,7 @@ export function generateInventoryInsights(
   // Sort forecast descending by soldToday for readability.
   dailyForecast.sort((a, b) => b.soldToday - a.soldToday);
 
-  // ── 2. Fast-Moving Detection ─────────────────────────────────────────
+  // ── 3. Fast-Moving Detection ─────────────────────────────────────────
   const sortedByQty = Object.entries(accum)
     .map(([name, a]) => ({ name, qty: a.todayQty, avg: a.totalQty / totalDays }))
     .filter((x) => x.qty > 0)
@@ -497,7 +525,7 @@ export function generateInventoryInsights(
     }
   }
 
-  // ── 3. Slow-Moving Detection ─────────────────────────────────────────
+  // ── 4. Slow-Moving Detection ─────────────────────────────────────────
   const slowCandidates = Object.entries(accum)
     .map(([name, a]) => {
       let daysSinceLastOrder: number | null = null;
@@ -523,60 +551,63 @@ export function generateInventoryInsights(
       daysSinceLastOrder: c.daysSinceLastOrder,
     }));
 
-  // ── 4. Stockout Prediction ───────────────────────────────────────────
+  // ── 5. Stockout Prediction ───────────────────────────────────────────
   const stockoutAlerts: StockoutAlert[] = [];
 
-  for (const [itemName, a] of Object.entries(accum)) {
-    if (a.todayQty === 0) continue; // no sales today — nothing to predict
+  // Only run stockout alerts when we're inside the operating window
+  if (isInsideWindow) {
+    for (const [itemName, a] of Object.entries(accum)) {
+      if (a.todayQty === 0) continue; // no sales today — nothing to predict
 
-    // Build an average hourly demand curve from all data for this item.
-    const avgHourly = a.hourly.map((h) => h / totalDays);
+      // Build an average hourly demand curve from all data for this item.
+      const avgHourly = a.hourly.map((h) => h / totalDays);
 
-    // Cumulative demand from now until end of window.
-    const currentHour = new Date().getHours();
-    let remainingDemand = 0;
+      // Cumulative demand from now until end of window.
+      const currentHour = new Date().getHours();
+      let remainingDemand = 0;
 
-    // Walk the remaining operating hours and sum expected demand.
-    const currentIdx = OPERATING_HOURS.indexOf(currentHour);
-    if (currentIdx === -1) continue; // outside window
+      // Walk the remaining operating hours and sum expected demand.
+      const currentIdx = OPERATING_HOURS.indexOf(currentHour);
+      if (currentIdx === -1) continue; // outside window
 
-    for (let oi = currentIdx + 1; oi < OPERATING_HOURS.length; oi++) {
-      remainingDemand += avgHourly[OPERATING_HOURS[oi]];
-    }
-
-    // Simple heuristic: if today's velocity is significantly above average,
-    // find the hour where cumulative exceeds a "typical prep" threshold.
-    // We define "typical prep" as 1.3× the average daily total adjusted by DOW multiplier.
-    // If the user manually provided an actual prep count, we use that instead!
-    const heuristicPrep = (a.totalQty / totalDays) * dowMultiplier * 1.3;
-    const typicalPrep = actualPrepCounts[itemName] !== undefined ? actualPrepCounts[itemName] : heuristicPrep;
-    
-    if (typicalPrep <= 0) continue;
-
-    let cumulativeToday = a.todayQty;
-    let predictedHour: number | null = null;
-
-    for (let oi = currentIdx + 1; oi < OPERATING_HOURS.length; oi++) {
-      cumulativeToday += avgHourly[OPERATING_HOURS[oi]];
-      if (cumulativeToday >= typicalPrep) {
-        predictedHour = OPERATING_HOURS[oi];
-        break;
+      for (let oi = currentIdx + 1; oi < OPERATING_HOURS.length; oi++) {
+        remainingDemand += avgHourly[OPERATING_HOURS[oi]];
       }
-    }
 
-    if (predictedHour !== null) {
-      // Confidence depends on how much today's pace exceeds average.
-      const paceRatio = a.todayQty / Math.max(0.1, (a.totalQty / totalDays) * progress);
-      let confidence: 'high' | 'medium' | 'low';
-      if (paceRatio > 1.8) confidence = 'high';
-      else if (paceRatio > 1.2) confidence = 'medium';
-      else confidence = 'low';
+      // Simple heuristic: if today's velocity is significantly above average,
+      // find the hour where cumulative exceeds a "typical prep" threshold.
+      // We define "typical prep" as 1.3× the average daily total adjusted by DOW multiplier.
+      // If the user manually provided an actual prep count, we use that instead!
+      const heuristicPrep = (a.totalQty / totalDays) * dowMultiplier * 1.3;
+      const typicalPrep = actualPrepCounts[itemName] !== undefined ? actualPrepCounts[itemName] : heuristicPrep;
 
-      stockoutAlerts.push({
-        itemName,
-        predictedHour: formatHourRange(predictedHour),
-        confidence,
-      });
+      if (typicalPrep <= 0) continue;
+
+      let cumulativeToday = a.todayQty;
+      let predictedHour: number | null = null;
+
+      for (let oi = currentIdx + 1; oi < OPERATING_HOURS.length; oi++) {
+        cumulativeToday += avgHourly[OPERATING_HOURS[oi]];
+        if (cumulativeToday >= typicalPrep) {
+          predictedHour = OPERATING_HOURS[oi];
+          break;
+        }
+      }
+
+      if (predictedHour !== null) {
+        // Confidence depends on how much today's pace exceeds average.
+        const paceRatio = a.todayQty / Math.max(0.1, (a.totalQty / totalDays) * progress);
+        let confidence: 'high' | 'medium' | 'low';
+        if (paceRatio > 1.8) confidence = 'high';
+        else if (paceRatio > 1.2) confidence = 'medium';
+        else confidence = 'low';
+
+        stockoutAlerts.push({
+          itemName,
+          predictedHour: formatHourRange(predictedHour),
+          confidence,
+        });
+      }
     }
   }
 
@@ -586,7 +617,7 @@ export function generateInventoryInsights(
     (a, b) => confOrder[a.confidence] - confOrder[b.confidence]
   );
 
-  // ── 5. Wastage Prediction ────────────────────────────────────────────
+  // ── 6. Wastage Prediction ────────────────────────────────────────────
   const wastageAlerts: WastageAlert[] = [];
 
   for (const [itemName, a] of Object.entries(accum)) {
@@ -597,6 +628,9 @@ export function generateInventoryInsights(
 
     // If nothing was prepped, or if we've already sold everything prepped, there's no wastage risk!
     if (typicalPrep <= 0 || a.todayQty >= typicalPrep) continue;
+
+    // Only calculate wastage risk when inside the operating window
+    const effectiveProgress = isInsideWindow ? progress : 0;
 
     let riskScore = 0;
     const reasons: string[] = [];
@@ -616,23 +650,23 @@ export function generateInventoryInsights(
 
     // Factor 2: Zero sales despite significant time passed
     if (a.todayQty === 0 && typicalPrep > 0) {
-      if (progress > 0.3) {
+      if (effectiveProgress > 0.3) {
         riskScore += 30;
         reasons.push('No sales today despite prepped inventory');
-      } else {
+      } else if (effectiveProgress > 0) {
         riskScore += 10;
         reasons.push('No sales yet');
       }
     }
 
-    // Factor 3: Sluggish sales pace
-    if (a.todayQty > 0 && a.todayQty < typicalPrep * 0.4 * progress) {
+    // Factor 3: Sluggish sales pace (only meaningful inside the window)
+    if (isInsideWindow && a.todayQty > 0 && a.todayQty < typicalPrep * 0.4 * effectiveProgress) {
       riskScore += 30;
       reasons.push(`Sales pace (${a.todayQty}) is too slow to clear prep (${typicalPrep})`);
     }
 
-    // Factor 4: End-of-window panic
-    if (progress > 0.6) {
+    // Factor 4: End-of-window panic (only inside window)
+    if (isInsideWindow && effectiveProgress > 0.6) {
       const remaining = typicalPrep - a.todayQty;
       if (remaining > Math.max(2, expectedToday * 0.4)) {
         riskScore += 40;
