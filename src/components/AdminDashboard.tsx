@@ -4,7 +4,7 @@ import { IntelligenceDashboard } from './intelligence/IntelligenceDashboard';
 import {
   Lock, Store, Power, BarChart3, ChefHat, User, MapPin,
   ShoppingCart, Star, Clock, Check, ShieldAlert,
-  IndianRupee, TrendingUp, Trophy,
+  IndianRupee, TrendingUp, Trophy, Zap
 } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
