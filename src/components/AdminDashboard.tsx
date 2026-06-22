@@ -6,29 +6,15 @@ import {
   ShoppingCart, Star, Clock, Check, ShieldAlert,
   IndianRupee, TrendingUp, Trophy,
 } from 'lucide-react';
-import { doc, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useStore } from '../store/useStore';
 import type { Order, OrderStatus } from '../types';
-
-// ─── Strongly-typed update payload (no any!) ──────────────────────────────
-type StatusUpdatePayload = {
-  status: OrderStatus;
-  'timestamps.acceptedAt'?: number;
-  'timestamps.readyAt'?: number;
-  'timestamps.deliveredAt'?: number;
-};
+import { OrderService } from '../services/orderService';
 
 async function updateOrderStatus(order: Order, newStatus: OrderStatus) {
   if (!order.dbId) return;
-  const now = Date.now();
-
-  const payload: StatusUpdatePayload = { status: newStatus };
-  if (newStatus === 'Cooking') payload['timestamps.acceptedAt'] = now;
-  else if (newStatus === 'Out for Delivery' || newStatus === 'Ready for Pickup') payload['timestamps.readyAt'] = now;
-  else if (newStatus === 'Delivered') payload['timestamps.deliveredAt'] = now;
-
-  await updateDoc(doc(db, 'orders', order.dbId), payload as Record<string, unknown>);
+  await OrderService.updateStatus(order.dbId, newStatus, order);
 }
 
 interface AdminDashboardProps {

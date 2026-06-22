@@ -73,8 +73,11 @@ interface AppState {
   setItemRating: (itemId: number, field: keyof ItemRating, value: string | number) => void;
   clearItemRatings: () => void;
 
-  setActualPrepCount: (itemName: string, count: number) => void;
+  setActualPrepCount: (itemName: string, count?: number) => void;
 }
+
+const initialPrepCountsRaw = localStorage.getItem('actualPrepCounts');
+const initialPrepCounts = initialPrepCountsRaw ? JSON.parse(initialPrepCountsRaw) : {};
 
 export const useStore = create<AppState>((set, get) => ({
   // ─── Initial State ───────────────────────────────────────────────────────
@@ -98,7 +101,7 @@ export const useStore = create<AppState>((set, get) => ({
   activeTrackingId: null,
   itemRatings: {},
   
-  actualPrepCounts: {},
+  actualPrepCounts: initialPrepCounts,
 
   // ─── Computed ────────────────────────────────────────────────────────────
   cartTotal: () => get().cart.reduce((sum, i) => sum + i.price * i.qty, 0),
@@ -187,10 +190,14 @@ export const useStore = create<AppState>((set, get) => ({
 
   // ─── Intelligence ────────────────────────────────────────────────────────
   setActualPrepCount: (itemName, count) =>
-    set((s) => ({
-      actualPrepCounts: {
-        ...s.actualPrepCounts,
-        [itemName]: count,
-      },
-    })),
+    set((s) => {
+      const newCounts = { ...s.actualPrepCounts };
+      if (count === undefined) {
+        delete newCounts[itemName];
+      } else {
+        newCounts[itemName] = count;
+      }
+      localStorage.setItem('actualPrepCounts', JSON.stringify(newCounts));
+      return { actualPrepCounts: newCounts };
+    }),
 }));

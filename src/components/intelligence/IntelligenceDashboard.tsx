@@ -31,7 +31,7 @@ interface IntelligenceDashboardProps {
 
 export function IntelligenceDashboard({ orders, menuItems }: IntelligenceDashboardProps) {
   const [activeTab, setActiveTab] = useState<Tab>('inventory');
-  const [demoMode, setDemoMode] = useState(false);
+  const [userDemoMode, setUserDemoMode] = useState<boolean | null>(null);
   const actualPrepCounts = useStore(s => s.actualPrepCounts);
 
   // Determine if we have enough real data
@@ -43,26 +43,18 @@ export function IntelligenceDashboard({ orders, menuItems }: IntelligenceDashboa
   const hasLimitedData = realOrderCount < 10;
   const hasLimitedFeedback = realFeedbackCount < 5;
 
+  const isDemoMode = userDemoMode !== null ? userDemoMode : (hasLimitedData || hasLimitedFeedback);
+
   // Compute insights — memoized to avoid recalculating on every render
   const inventoryInsights: InventoryInsights = useMemo(() => {
-    const effectiveOrders = demoMode || hasLimitedData
-      ? [...orders, ...generateDemoOrders(menuItems)]
-      : orders;
-    return generateInventoryInsights(effectiveOrders, menuItems, actualPrepCounts);
-  }, [orders, menuItems, demoMode, hasLimitedData, actualPrepCounts]);
+    return generateInventoryInsights(orders, menuItems, actualPrepCounts, isDemoMode);
+  }, [orders, menuItems, isDemoMode, actualPrepCounts]);
 
   const reviewInsights: ReviewInsights = useMemo(() => {
-    const effectiveOrders = demoMode || hasLimitedFeedback
-      ? (() => {
-          // For reviews, we need orders with feedback. Generate demo orders with feedback.
-          const demoOrders = generateDemoOrders(menuItems);
-          return [...orders, ...demoOrders];
-        })()
-      : orders;
-    return generateReviewInsights(effectiveOrders);
-  }, [orders, menuItems, demoMode, hasLimitedFeedback]);
+    return generateReviewInsights(orders, isDemoMode);
+  }, [orders, isDemoMode]);
 
-  const isShowingDemo = demoMode || hasLimitedData || hasLimitedFeedback;
+  const isShowingDemo = isDemoMode;
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
     {
@@ -108,10 +100,10 @@ export function IntelligenceDashboard({ orders, menuItems }: IntelligenceDashboa
               </span>
             )}
             <button
-              onClick={() => setDemoMode(!demoMode)}
+              onClick={() => setUserDemoMode(!isDemoMode)}
               className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors bg-slate-800/50 px-3 py-2 rounded-xl border border-slate-700/50 hover:border-slate-600"
             >
-              {demoMode ? (
+              {isDemoMode ? (
                 <ToggleRight size={18} className="text-violet-400" />
               ) : (
                 <ToggleLeft size={18} />

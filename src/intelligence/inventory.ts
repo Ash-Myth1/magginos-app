@@ -332,10 +332,11 @@ export function generateDemoOrders(menuItems: MenuItem[]): Order[] {
 export function generateInventoryInsights(
   orders: Order[],
   menuItems: MenuItem[],
-  actualPrepCounts: Record<string, number> = {}
+  actualPrepCounts: Record<string, number> = {},
+  isDemoMode?: boolean
 ): InventoryInsights {
   // ── Fallback to demo data when real data is too sparse ───────────────
-  const isUsingDemoData = orders.length < MIN_REAL_ORDERS;
+  const isUsingDemoData = isDemoMode !== undefined ? isDemoMode : orders.length < MIN_REAL_ORDERS;
   const effectiveOrders: Order[] = isUsingDemoData
     ? [...orders, ...generateDemoOrders(menuItems)]
     : orders;
@@ -592,14 +593,18 @@ export function generateInventoryInsights(
     const historicalAvgDaily = a.totalQty / totalDays;
     const expectedToday = historicalAvgDaily * dowMultiplier;
     const manualPrep = actualPrepCounts[itemName];
-    
+    const typicalPrep = manualPrep !== undefined ? manualPrep : Math.ceil(expectedToday * 1.3);
+
+    // If nothing was prepped, or if we've already sold everything prepped, there's no wastage risk!
+    if (typicalPrep <= 0 || a.todayQty >= typicalPrep) continue;
+
     let riskScore = 0;
     const reasons: string[] = [];
 
-    // Factor 1: Zero sales today despite historical average > 0.
-    if (a.todayQty === 0 && expectedToday > 0) {
+    // Factor 1: Zero sales today despite having prepped inventory.
+    if (a.todayQty === 0 && typicalPrep > 0) {
       riskScore += 40;
-      reasons.push('No sales today despite historical demand');
+      reasons.push('No sales today despite prepped inventory');
     }
 
     // Factor 2: Never ordered at all.
@@ -608,18 +613,18 @@ export function generateInventoryInsights(
       reasons.push('Never ordered — full prep likely wasted');
     }
 
-    // Factor 3: Today's sales far below expected today's volume.
-    if (a.todayQty > 0 && a.todayQty < expectedToday * 0.4 * progress) {
+    // Factor 3: Today's sales far below the prepped volume.
+    if (a.todayQty > 0 && a.todayQty < typicalPrep * 0.3 * progress) {
       riskScore += 25;
       reasons.push(
-        `Sales pace (${a.todayQty}) well below expected (${(expectedToday * progress).toFixed(1)})`
+        `Sales pace (${a.todayQty}) well below prep level (${typicalPrep})`
       );
     }
 
     // Factor 4: Late in the window with low sales → remaining stock wasted.
-    if (progress > 0.6 && a.todayQty < expectedToday * 0.5) {
+    if (progress > 0.6 && a.todayQty < typicalPrep * 0.5) {
       riskScore += 20;
-      reasons.push('Window >60% done with under half the usual volume');
+      reasons.push('Window >60% done with under half of prep sold');
     }
 
     // Factor 5: Item only ever sold on one day (sporadic).
