@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <title>Maggino's | Late Night Cravings Delivered</title>
+    <meta name="title" content="Maggino's | Late Night Cravings Delivered" />
+    <meta name="description" content="Hot, fresh Maggi delivered right to your hostel room in minutes. Open for late-night orders!" />
+    <meta name="theme-color" content="#f97316" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://magginos-app.vercel.app/" />
+    <meta property="og:title" content="Maggino's | Late Night Cravings Delivered" />
+    <meta property="og:description" content="Hot, fresh Maggi delivered right to your hostel room in minutes. Open for late-night orders!" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?auto=format&fit=crop&q=80&w=1200&h=630" />
+
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://magginos-app.vercel.app/" />
+    <meta property="twitter:title" content="Maggino's | Late Night Cravings Delivered" />
+    <meta property="twitter:description" content="Hot, fresh Maggi delivered right to your hostel room in minutes. Open for late-night orders!" />
+    <meta property="twitter:image" content="https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?auto=format&fit=crop&q=80&w=1200&h=630" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then(registration => {
+            console.log('Magginos App is ready to install!');
+          }).catch(err => {
+            console.log('Service Worker registration failed: ', err);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+{
+    "name": "Maggino's | Late Night Cravings",
+    "short_name": "Maggino's",
+    "description": "Hot, fresh Maggi delivered right to your hostel room.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#1a1a1a",
+    "theme_color": "#f97316",
+    "icons": [
+        {
+          "src": "/logo.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any maskable"
+        },
+        {
+          "src": "/logo.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "any maskable"
+        }
+      ]
+  }

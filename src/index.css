@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-marquee: marquee 20s linear infinite;
+
+  @keyframes marquee {
+    0% { transform: translateX(0%) }
+    100% { transform: translateX(-50%) }
+  }
+}
+
+@layer utilities {
+  .zoom-in-95 {
+    transform: scale(0.95);
+  }
+}
