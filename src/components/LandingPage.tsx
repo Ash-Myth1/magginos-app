@@ -149,7 +149,8 @@ export function LandingPage() {
       <AnimatePresence>
         {stage < 6 && (
           <motion.div
-            exit={{ y: '-100vh', transition: { duration: 0.8, ease: [0.76, 0, 0.24, 1] } }}
+            exit={{ y: '-100%', transition: { duration: 0.8, ease: [0.76, 0, 0.24, 1] } }}
+            style={{ willChange: "transform" }}
             className="fixed inset-0 z-[100] bg-orange-500 flex flex-col items-center justify-center overflow-hidden"
           >
             <BowlStack stage={stage} />
@@ -181,23 +182,24 @@ export function LandingPage() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: stage >= 6 ? 1 : 0, y: stage >= 6 ? 0 : -20 }}
         transition={{ delay: 0.5 }}
-        className="relative z-50 flex justify-between items-center p-6 sm:p-8"
+        className="relative z-50 flex justify-between items-center p-4 sm:p-8"
       >
-        <div className="flex items-center gap-2">
-            {/* NEW CUSTOM LOGO */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <img 
                 src="/logo.png" 
                 alt="Maggino's Logo" 
-                className="w-10 h-10 object-contain drop-shadow-lg" 
+                className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-lg" 
             />
-            <span className="font-black text-2xl tracking-tight text-white uppercase">Maggino's</span>
+            <span className="font-black text-base sm:text-2xl tracking-tight text-white uppercase mt-0.5">Maggino's</span>
         </div>
         
         <button 
           onClick={() => navigate('/order')}
-          className="bg-orange-500 hover:bg-slate-50 text-slate-900 px-6 py-3 rounded-full font-black text-sm uppercase tracking-wider transition-colors shadow-lg flex items-center gap-2 group"
+          className="bg-orange-500 hover:bg-slate-50 text-slate-900 px-4 py-2 sm:px-6 sm:py-3 rounded-full font-black text-[11px] sm:text-sm uppercase tracking-widest transition-colors shadow-lg flex items-center gap-2 group shrink-0 whitespace-nowrap"
         >
-          Order Now <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+          <span className="hidden sm:inline">Order Now</span>
+          <span className="sm:hidden">Order</span>
+          <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
         </button>
       </motion.nav>
 
@@ -229,7 +231,10 @@ export function LandingPage() {
           className="relative z-20 mt-10 group cursor-pointer"
           onClick={() => navigate('/order')}
         >
-          <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}>
+          <motion.div 
+            animate={{ y: [0, -10, 0] }} 
+            transition={{ repeat: Infinity, duration: 5, ease: "easeInOut", delay: 1.6 }}
+          >
             <BowlStack isHero={true} />
           </motion.div>
           

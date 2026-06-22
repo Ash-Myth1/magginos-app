@@ -36,7 +36,8 @@ interface AdminDashboardProps {
 }
 
 export function AdminDashboard({ onLogin }: AdminDashboardProps) {
-  const { currentUser, isStoreOpen, setIsStoreOpen, menuItems, outOfStockIds, orders } = useStore();
+  const { currentUser, isStoreOpen, setIsStoreOpen, menuItems, outOfStockIds, orders, getEffectiveOutOfStockIds } = useStore();
+  const effectiveOutIds = getEffectiveOutOfStockIds();
 
   const toggleStock = async (itemId: number) => {
     const updated = outOfStockIds.includes(itemId)
@@ -147,18 +148,27 @@ export function AdminDashboard({ onLogin }: AdminDashboardProps) {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {menuItems.map((item) => {
-              const isOut = outOfStockIds.includes(item.id);
+              const isManualOut = outOfStockIds.includes(item.id);
+              const isAutoOut = !isManualOut && effectiveOutIds.includes(item.id);
+              const isOut = isManualOut || isAutoOut;
+              
               return (
-                <div key={item.id} className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-slate-100 transition-colors">
+                <div key={item.id} className={`flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-slate-100 transition-colors ${isAutoOut ? 'ring-2 ring-orange-500/20' : ''}`}>
                   <div>
                     <p className="font-bold text-sm text-slate-800 leading-tight">{item.name}</p>
-                    <p className={`text-[10px] font-black mt-1 uppercase tracking-wider ${isOut ? 'text-red-500' : 'text-green-500'}`}>
-                      {isOut ? 'Sold Out' : 'Active'}
-                    </p>
+                    {isAutoOut ? (
+                      <p className="text-[10px] font-black mt-1 uppercase tracking-wider text-orange-500 flex items-center gap-1">
+                        <Zap size={10} /> Auto-Pilot Empty
+                      </p>
+                    ) : (
+                      <p className={`text-[10px] font-black mt-1 uppercase tracking-wider ${isOut ? 'text-red-500' : 'text-green-500'}`}>
+                        {isOut ? 'Sold Out (Manual)' : 'Active'}
+                      </p>
+                    )}
                   </div>
                   <button
                     onClick={() => toggleStock(item.id)}
-                    className={`w-14 h-7 rounded-full p-1 transition-all relative shadow-inner ${isOut ? 'bg-red-200' : 'bg-green-500'}`}
+                    className={`w-14 h-7 rounded-full p-1 transition-all relative shadow-inner ${isManualOut ? 'bg-red-200' : isAutoOut ? 'bg-orange-200' : 'bg-green-500'}`}
                   >
                     <div className={`bg-white w-5 h-5 rounded-full shadow-md transition-all absolute top-1 ${isOut ? 'left-1' : 'left-8'}`} />
                   </button>

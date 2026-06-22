@@ -46,6 +46,7 @@ interface AppState {
   // ─── Computed helpers ────────────────────────────────────────────────────
   cartTotal: () => number;
   cartCount: () => number;
+  getEffectiveOutOfStockIds: () => number[];
 
   // ─── Actions ─────────────────────────────────────────────────────────────
   setIsLoading: (v: boolean) => void;
@@ -102,6 +103,40 @@ export const useStore = create<AppState>((set, get) => ({
   // ─── Computed ────────────────────────────────────────────────────────────
   cartTotal: () => get().cart.reduce((sum, i) => sum + i.price * i.qty, 0),
   cartCount: () => get().cart.reduce((sum, i) => sum + i.qty, 0),
+  getEffectiveOutOfStockIds: () => {
+    const s = get();
+    
+    // Helper to determine the "logical day" (11 PM to 5 AM shift)
+    const logicalDay = (ts: number) => {
+      const d = new Date(ts);
+      if (d.getHours() < 5) d.setDate(d.getDate() - 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    
+    const today = logicalDay(Date.now());
+    const soldTodayMap: Record<string, number> = {};
+    
+    for (const order of s.orders) {
+      if (logicalDay(order.timestamp) === today) {
+        for (const item of order.items) {
+          soldTodayMap[item.name] = (soldTodayMap[item.name] || 0) + item.qty;
+        }
+      }
+    }
+    
+    const autoOutIds = s.menuItems
+      .filter(item => {
+        const prep = s.actualPrepCounts[item.name];
+        if (prep !== undefined) {
+           const sold = soldTodayMap[item.name] || 0;
+           return sold >= prep;
+        }
+        return false;
+      })
+      .map(item => item.id);
+      
+    return Array.from(new Set([...s.outOfStockIds, ...autoOutIds]));
+  },
 
   // ─── Setters ─────────────────────────────────────────────────────────────
   setIsLoading: (isLoading) => set({ isLoading }),
@@ -120,7 +155,7 @@ export const useStore = create<AppState>((set, get) => ({
   // ─── Cart ────────────────────────────────────────────────────────────────
   addToCart: (item) =>
     set((s) => {
-      if (!s.isStoreOpen || s.outOfStockIds.includes(item.id)) return s;
+      if (!s.isStoreOpen || s.getEffectiveOutOfStockIds().includes(item.id)) return s;
       const existing = s.cart.find((c) => c.id === item.id);
       if (existing) {
         return { cart: s.cart.map((c) => (c.id === item.id ? { ...c, qty: c.qty + 1 } : c)) };
