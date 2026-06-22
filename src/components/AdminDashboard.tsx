@@ -1,5 +1,6 @@
 // src/components/AdminDashboard.tsx
 import React from 'react';
+import { IntelligenceDashboard } from './intelligence/IntelligenceDashboard';
 import {
   Lock, Store, Power, BarChart3, ChefHat, User, MapPin,
   ShoppingCart, Star, Clock, Check, ShieldAlert,
@@ -131,6 +132,11 @@ export function AdminDashboard({ onLogin }: AdminDashboardProps) {
             </div>
           ))}
         </div>
+      )}
+
+      {/* ── Intelligence Dashboard (admin only) ─────────────────────────── */}
+      {isAdmin && (
+        <IntelligenceDashboard orders={orders} menuItems={menuItems} />
       )}
 
       {/* Stock controls */}
