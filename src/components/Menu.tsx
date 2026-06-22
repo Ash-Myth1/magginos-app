@@ -31,7 +31,9 @@ export function Menu() {
           const remaining = getRemainingStock ? getRemainingStock(item) : null;
           const cartItem = cart.find(c => c.id === item.id);
           const currentCartQty = cartItem ? cartItem.qty : 0;
-          const isMaxedOut = remaining !== null && currentCartQty >= remaining;
+          
+          const limit = remaining !== null ? Math.min(remaining, 10) : 10;
+          const isMaxedOut = currentCartQty >= limit;
           
           const disabled = isOut || !isStoreOpen || isMaxedOut;
 

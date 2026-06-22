@@ -80,10 +80,12 @@ export function useFirebaseSync() {
           setOutOfStockIds(data.ids ?? []);
           setForceInStockIds(data.forceInStockIds ?? []);
           setActualPrepCountsSync(data.prepCounts ?? {});
+          useStore.getState().setSoldCountsSync(data.soldCounts ?? {});
         } else {
           setOutOfStockIds([]);
           setForceInStockIds([]);
           setActualPrepCountsSync({});
+          useStore.getState().setSoldCountsSync({});
         }
       },
       (err) => console.error('[Inventory sync]', err)

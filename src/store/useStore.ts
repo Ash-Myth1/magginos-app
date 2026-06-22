@@ -35,6 +35,7 @@ interface AppState {
   showCheckout: boolean;
   showQRModal: boolean;
   pendingOrderData: Omit<Order, 'dbId'> | null;
+  soldCounts: Record<string, Record<string, number>>;
 
   // ─── Order Tracking ──────────────────────────────────────────────────────
   showMyOrders: boolean;
@@ -77,6 +78,7 @@ interface AppState {
   clearItemRatings: () => void;
 
   setActualPrepCountsSync: (counts: Record<string, number>) => void;
+  setSoldCountsSync: (counts: Record<string, Record<string, number>>) => void;
 }
 
 const initialPrepCountsRaw = localStorage.getItem('actualPrepCounts');
@@ -100,6 +102,7 @@ export const useStore = create<AppState>((set, get) => ({
   showCheckout: false,
   showQRModal: false,
   pendingOrderData: null,
+  soldCounts: {},
 
   showMyOrders: false,
   activeTrackingId: null,
@@ -113,30 +116,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   getRemainingStock: (item: MenuItem) => {
     const s = get();
-    const prep = s.actualPrepCounts[item.name];
-    if (prep === undefined) return null; // No explicit prep count tracked
+    const stock = s.actualPrepCounts[item.name];
+    if (stock === undefined) return null; // No explicit stock tracked
     
-    // Helper to determine the "logical day"
-    const logicalDay = (ts: number) => {
-      const d = new Date(ts);
-      if (d.getHours() < 5) d.setDate(d.getDate() - 1);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    };
-    
-    const today = logicalDay(Date.now());
-    let soldToday = 0;
-    
-    for (const order of s.orders) {
-      if (logicalDay(order.timestamp) === today) {
-        for (const orderItem of order.items) {
-          if (orderItem.name === item.name) {
-            soldToday += orderItem.qty;
-          }
-        }
-      }
-    }
-    
-    return Math.max(0, prep - soldToday);
+    return stock;
   },
 
   getEffectiveOutOfStockIds: () => {
@@ -179,10 +162,12 @@ export const useStore = create<AppState>((set, get) => ({
       const existing = s.cart.find((c) => c.id === item.id);
       const currentQty = existing ? existing.qty : 0;
       
-      // Enforce actual inventory limit if tracked
+      // Enforce actual inventory limit if tracked, plus a hard sanity limit of 10
       const remaining = s.getRemainingStock(item);
-      if (remaining !== null && currentQty >= remaining) {
-        return s; // Can't add more than we have left
+      const limit = remaining !== null ? Math.min(remaining, 10) : 10;
+      
+      if (currentQty >= limit) {
+        return s; // Can't add more than limit
       }
       
       if (existing) {

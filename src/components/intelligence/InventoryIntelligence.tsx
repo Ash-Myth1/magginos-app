@@ -157,7 +157,7 @@ export function InventoryIntelligence({ insights }: InventoryIntelligenceProps) 
                             </p>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Actual:</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">In Stock:</span>
                             <input 
                               type="number"
                               min="0"
