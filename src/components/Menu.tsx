@@ -4,7 +4,7 @@ import { Plus, AlertCircle, Sparkles } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 export function Menu() {
-  const { menuItems, isStoreOpen, addToCart, getEffectiveOutOfStockIds } = useStore();
+  const { menuItems, isStoreOpen, addToCart, getEffectiveOutOfStockIds, cart, getRemainingStock } = useStore();
   const effectiveOutIds = getEffectiveOutOfStockIds();
 
   if (menuItems.length === 0) {
@@ -26,7 +26,14 @@ export function Menu() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
         {menuItems.map((item) => {
           const isOut = effectiveOutIds.includes(item.id);
-          const disabled = isOut || !isStoreOpen;
+          
+          // Check actual prep count limit against what's already in the cart
+          const remaining = getRemainingStock ? getRemainingStock(item) : null;
+          const cartItem = cart.find(c => c.id === item.id);
+          const currentCartQty = cartItem ? cartItem.qty : 0;
+          const isMaxedOut = remaining !== null && currentCartQty >= remaining;
+          
+          const disabled = isOut || !isStoreOpen || isMaxedOut;
 
           return (
             <div
@@ -61,7 +68,7 @@ export function Menu() {
                       : 'bg-slate-900 text-white hover:bg-orange-500 shadow-lg hover:shadow-orange-500/30'
                   }`}
                 >
-                  <Plus size={18} /> Add
+                  {isMaxedOut ? <span className="text-xs">Limit Reached</span> : <><Plus size={18} /> Add</>}
                 </button>
               </div>
             </div>

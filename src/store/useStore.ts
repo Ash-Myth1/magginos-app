@@ -48,6 +48,7 @@ interface AppState {
   cartTotal: () => number;
   cartCount: () => number;
   getEffectiveOutOfStockIds: () => number[];
+  getRemainingStock: (item: MenuItem) => number | null;
 
   // ─── Actions ─────────────────────────────────────────────────────────────
   setIsLoading: (v: boolean) => void;
@@ -75,7 +76,7 @@ interface AppState {
   setItemRating: (itemId: number, field: keyof ItemRating, value: string | number) => void;
   clearItemRatings: () => void;
 
-  setActualPrepCount: (itemName: string, count?: number) => void;
+  setActualPrepCountsSync: (counts: Record<string, number>) => void;
 }
 
 const initialPrepCountsRaw = localStorage.getItem('actualPrepCounts');
@@ -89,6 +90,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   menuItems: [],
   outOfStockIds: [],
+  forceInStockIds: [],
   orders: [],
 
   currentUser: null,
@@ -108,10 +110,13 @@ export const useStore = create<AppState>((set, get) => ({
   // ─── Computed ────────────────────────────────────────────────────────────
   cartTotal: () => get().cart.reduce((sum, i) => sum + i.price * i.qty, 0),
   cartCount: () => get().cart.reduce((sum, i) => sum + i.qty, 0),
-  getEffectiveOutOfStockIds: () => {
+
+  getRemainingStock: (item: MenuItem) => {
     const s = get();
+    const prep = s.actualPrepCounts[item.name];
+    if (prep === undefined) return null; // No explicit prep count tracked
     
-    // Helper to determine the "logical day" (11 PM to 5 AM shift)
+    // Helper to determine the "logical day"
     const logicalDay = (ts: number) => {
       const d = new Date(ts);
       if (d.getHours() < 5) d.setDate(d.getDate() - 1);
@@ -119,26 +124,34 @@ export const useStore = create<AppState>((set, get) => ({
     };
     
     const today = logicalDay(Date.now());
-    const soldTodayMap: Record<string, number> = {};
+    let soldToday = 0;
     
     for (const order of s.orders) {
       if (logicalDay(order.timestamp) === today) {
-        for (const item of order.items) {
-          soldTodayMap[item.name] = (soldTodayMap[item.name] || 0) + item.qty;
+        for (const orderItem of order.items) {
+          if (orderItem.name === item.name) {
+            soldToday += orderItem.qty;
+          }
         }
       }
     }
     
+    return Math.max(0, prep - soldToday);
+  },
+
+  getEffectiveOutOfStockIds: () => {
+    const s = get();
+    
     const autoOutIds = s.menuItems
       .filter(item => {
-        const prep = s.actualPrepCounts[item.name];
-        if (prep !== undefined) {
-           const sold = soldTodayMap[item.name] || 0;
-           return sold >= prep;
+        const remaining = s.getRemainingStock(item);
+        if (remaining !== null) {
+           return remaining <= 0;
         }
         return false;
       })
-      .map(item => item.id);
+      .map(item => item.id)
+      .filter(id => !(s.forceInStockIds || []).includes(id));
       
     return Array.from(new Set([...s.outOfStockIds, ...autoOutIds]));
   },
@@ -161,7 +174,16 @@ export const useStore = create<AppState>((set, get) => ({
   addToCart: (item) =>
     set((s) => {
       if (!s.isStoreOpen || s.getEffectiveOutOfStockIds().includes(item.id)) return s;
+      
       const existing = s.cart.find((c) => c.id === item.id);
+      const currentQty = existing ? existing.qty : 0;
+      
+      // Enforce actual inventory limit if tracked
+      const remaining = s.getRemainingStock(item);
+      if (remaining !== null && currentQty >= remaining) {
+        return s; // Can't add more than we have left
+      }
+      
       if (existing) {
         return { cart: s.cart.map((c) => (c.id === item.id ? { ...c, qty: c.qty + 1 } : c)) };
       }
