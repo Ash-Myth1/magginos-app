@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import {
   Flame, Turtle, AlertTriangle, TrendingUp, TrendingDown,
   Clock, Package, BarChart3, ChevronDown, ChevronUp,
-  Zap, ShieldAlert, Trash2, ClipboardList, CheckCircle2, Save,
+  Zap, ShieldAlert, Trash2, ClipboardList, CheckCircle2, Save, Lock,
 } from 'lucide-react';
 import type { InventoryInsights } from '../../intelligence/inventory';
 import { useStore } from '../../store/useStore';
@@ -141,18 +141,39 @@ export function InventoryIntelligence({ insights }: InventoryIntelligenceProps) 
 
       {/* ═══════ 1.5 RECOMMENDED PREP LIST ═══════ */}
       {insights.prepRecommendations && insights.prepRecommendations.length > 0 && (
-        <div className="bg-slate-50/50 border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+        <div className={`border rounded-2xl overflow-hidden shadow-sm ${
+          insights.recommendationsLocked
+            ? 'bg-amber-50/40 border-amber-200/60'
+            : 'bg-slate-50/50 border-slate-100'
+        }`}>
           <button
             onClick={() => toggleSection('prep')}
-            className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors"
+            className="w-full flex items-center justify-between p-5 hover:bg-black/5 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="bg-emerald-100 p-2 rounded-xl">
-                <ClipboardList size={18} className="text-emerald-600" />
+              <div className={`p-2 rounded-xl ${
+                insights.recommendationsLocked ? 'bg-amber-100' : 'bg-emerald-100'
+              }`}>
+                {insights.recommendationsLocked
+                  ? <Lock size={18} className="text-amber-600" />
+                  : <ClipboardList size={18} className="text-emerald-600" />
+                }
               </div>
               <div>
-                <h4 className="font-black text-slate-800 text-sm text-left">Recommended Prep List</h4>
-                <p className="text-[10px] font-bold text-slate-400 mt-0.5 text-left">For the 11 PM – 5 AM window</p>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-black text-slate-800 text-sm text-left">Recommended Prep List</h4>
+                  {insights.recommendationsLocked && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 border border-amber-200 text-amber-700 text-[9px] font-black uppercase tracking-widest">
+                      <Lock size={8} />
+                      Locked until 5 AM
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] font-bold text-slate-400 mt-0.5 text-left">
+                  {insights.recommendationsLocked
+                    ? 'Frozen for this shift — updates resume after 5 AM'
+                    : 'For the upcoming shift (updates after 5 AM)'}
+                </p>
               </div>
             </div>
             {expandedSection === 'prep' ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
@@ -183,9 +204,16 @@ export function InventoryIntelligence({ insights }: InventoryIntelligenceProps) 
                       <div className="flex items-center gap-2 pl-3">
                         <div className="text-right flex flex-col items-end gap-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                              Rec: {item.recommendedQty}
-                            </p>
+                            {item.isLocked ? (
+                              <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-600">
+                                <Lock size={9} />
+                                Rec: {item.recommendedQty}
+                              </span>
+                            ) : (
+                              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Rec: {item.recommendedQty}
+                              </p>
+                            )}
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">In Stock:</span>

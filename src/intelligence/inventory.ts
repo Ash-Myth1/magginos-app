@@ -76,6 +76,12 @@ export interface PrepRecommendation {
   recommendedQty: number;
   /** How many units have already been sold today. */
   soldToday: number;
+  /**
+   * True when the operating session is live (5 PM–5 AM).
+   * Recommendations are frozen during this window so that incoming orders
+   * do NOT inflate the recommended stock count.
+   */
+  isLocked: boolean;
 }
 
 /** Top-level container returned by the engine. */
@@ -90,6 +96,12 @@ export interface InventoryInsights {
   hourlyDemand: Record<string, number[]>;
   /** True when the engine fell back to synthetic demo data. */
   isUsingDemoData: boolean;
+  /**
+   * True during the 5 PM–5 AM operating window.
+   * Prep recommendations are locked (frozen) during this period
+   * to prevent live orders from inflating the recommended stock counts.
+   */
+  recommendationsLocked: boolean;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -440,6 +452,7 @@ export function generateInventoryInsights(
   const dowTotals = new Array(7).fill(0);
   const dowCounts = new Array(7).fill(0);
   for (const dayStr of uniqueDays) {
+    if (dayStr === today) continue; // Skip today to prevent intra-day drift
     // Parse at 12:00 PM UTC to avoid timezone shifting the day backward/forward
     const d = new Date(`${dayStr}T12:00:00Z`);
     const dow = d.getUTCDay();
@@ -447,9 +460,17 @@ export function generateInventoryInsights(
     dowTotals[dow] += dailyVolume[dayStr] || 0;
   }
 
-  const overallAvgVolume = uniqueDays.length > 0
-    ? Object.values(dailyVolume).reduce((a, b) => a + b, 0) / uniqueDays.length
+  const histUniqueDays = uniqueDays.filter(d => d !== today);
+  const overallAvgVolume = histUniqueDays.length > 0
+    ? histUniqueDays.reduce((sum, dayStr) => sum + dailyVolume[dayStr], 0) / histUniqueDays.length
     : 1;
+
+  // Helper to get stable historical daily average (excluding today's incomplete data)
+  const getHistoricalAvgDaily = (a: { totalQty: number, todayQty: number }) => {
+    const historicalTotal = Math.max(0, a.totalQty - a.todayQty);
+    const historicalDaysCount = Math.max(1, allDays.has(today) ? totalDays - 1 : totalDays);
+    return historicalTotal / historicalDaysCount;
+  };
 
   const todayDate = new Date(`${today}T12:00:00Z`);
   const todayDow = todayDate.getUTCDay();
@@ -462,7 +483,7 @@ export function generateInventoryInsights(
   // ── 1. Daily Forecast ────────────────────────────────────────────────
   const dailyForecast: DailyForecastItem[] = Object.entries(accum).map(
     ([itemName, a]) => {
-      const avgDaily = a.totalQty / totalDays;
+      const avgDaily = getHistoricalAvgDaily(a);
       const expectedToday = avgDaily * dowMultiplier;
 
       let projectedTotal: number;
@@ -488,9 +509,15 @@ export function generateInventoryInsights(
   );
 
   // ── 2. Prep Recommendations ──────────────────────────────────────────
+  //
+  // IMPORTANT: recommendedQty is always based on HISTORICAL data (never today's
+  // live sales). This prevents incoming orders from inflating the recommended
+  // stock count during the 5 PM–5 AM operating window.
+  // isLocked=true when the session is live; the UI uses this to render the
+  // lock badge and suppress the "update" affordance.
   const prepRecommendations: PrepRecommendation[] = Object.entries(accum)
     .map(([itemName, a]) => {
-      const historicalAvgDaily = a.totalQty / totalDays;
+      const historicalAvgDaily = getHistoricalAvgDaily(a);
       const expectedToday = historicalAvgDaily * dowMultiplier;
       const recommendedQty = Math.ceil(expectedToday * 1.3);
 
@@ -499,6 +526,7 @@ export function generateInventoryInsights(
         expectedSales: Math.round(expectedToday * 10) / 10,
         recommendedQty,
         soldToday: a.todayQty,
+        isLocked: isInsideWindow,
       };
     })
     .filter(item => item.recommendedQty > 0)
@@ -509,7 +537,7 @@ export function generateInventoryInsights(
 
   // ── 3. Fast-Moving Detection ─────────────────────────────────────────
   const sortedByQty = Object.entries(accum)
-    .map(([name, a]) => ({ name, qty: a.todayQty, avg: a.totalQty / totalDays }))
+    .map(([name, a]) => ({ name, qty: a.todayQty, avg: getHistoricalAvgDaily(a) }))
     .filter((x) => x.qty > 0)
     .sort((a, b) => b.qty - a.qty);
 
@@ -578,7 +606,7 @@ export function generateInventoryInsights(
       // find the hour where cumulative exceeds a "typical prep" threshold.
       // We define "typical prep" as 1.3× the average daily total adjusted by DOW multiplier.
       // If the user manually provided an actual prep count, we use that instead!
-      const heuristicPrep = (a.totalQty / totalDays) * dowMultiplier * 1.3;
+      const heuristicPrep = getHistoricalAvgDaily(a) * dowMultiplier * 1.3;
       const typicalPrep = actualPrepCounts[itemName] !== undefined ? actualPrepCounts[itemName] : heuristicPrep;
 
       if (typicalPrep <= 0) continue;
@@ -596,7 +624,7 @@ export function generateInventoryInsights(
 
       if (predictedHour !== null) {
         // Confidence depends on how much today's pace exceeds average.
-        const paceRatio = a.todayQty / Math.max(0.1, (a.totalQty / totalDays) * progress);
+        const paceRatio = a.todayQty / Math.max(0.1, getHistoricalAvgDaily(a) * progress);
         let confidence: 'high' | 'medium' | 'low';
         if (paceRatio > 1.8) confidence = 'high';
         else if (paceRatio > 1.2) confidence = 'medium';
@@ -621,7 +649,7 @@ export function generateInventoryInsights(
   const wastageAlerts: WastageAlert[] = [];
 
   for (const [itemName, a] of Object.entries(accum)) {
-    const historicalAvgDaily = a.totalQty / totalDays;
+    const historicalAvgDaily = getHistoricalAvgDaily(a);
     const expectedToday = historicalAvgDaily * dowMultiplier;
     const manualPrep = actualPrepCounts[itemName];
     const typicalPrep = manualPrep !== undefined ? manualPrep : Math.ceil(expectedToday * 1.3);
@@ -712,5 +740,6 @@ export function generateInventoryInsights(
     wastageAlerts,
     hourlyDemand,
     isUsingDemoData,
+    recommendationsLocked: isInsideWindow,
   };
 }
