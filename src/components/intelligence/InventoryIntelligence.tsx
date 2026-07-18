@@ -6,8 +6,8 @@ import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Flame, Turtle, AlertTriangle, TrendingUp, TrendingDown,
-  Clock, Package, BarChart3, ChevronDown, ChevronUp,
-  Zap, ShieldAlert, Trash2, ClipboardList, CheckCircle2, Save, Lock,
+  Clock, BarChart3, ChevronDown, ChevronUp,
+  Zap, ShieldAlert, Trash2, ClipboardList, CheckCircle2, Lock,
 } from 'lucide-react';
 import type { InventoryInsights } from '../../intelligence/inventory';
 import { useStore } from '../../store/useStore';
@@ -32,11 +32,7 @@ function riskColor(score: number): string {
   return 'text-green-600 bg-green-50 border-green-100';
 }
 
-function riskBarColor(score: number): string {
-  if (score >= 70) return 'bg-gradient-to-r from-red-400 to-red-500';
-  if (score >= 40) return 'bg-gradient-to-r from-amber-400 to-amber-500';
-  return 'bg-gradient-to-r from-green-400 to-green-500';
-}
+
 
 function confidenceBadge(confidence: 'high' | 'medium' | 'low'): string {
   switch (confidence) {

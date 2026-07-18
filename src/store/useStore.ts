@@ -4,6 +4,7 @@
 
 import { create } from 'zustand';
 import type { CartItem, CustomerInfo, CrewUser, Order, MenuItem, ItemRating } from '../types';
+import { getLogicalDayKey } from '../utils/dateUtils';
 
 const DEFAULT_CUSTOMER_INFO: CustomerInfo = {
   name: '',
@@ -13,22 +14,6 @@ const DEFAULT_CUSTOMER_INFO: CustomerInfo = {
   orderType: 'delivery',
   paymentMethod: 'upi',
 };
-
-/**
- * Compute the "logical day" key for a given Date using the 5 PM–5 AM session definition.
- * Hours 0–4 (past midnight) belong to the *previous* calendar day's session.
- * Hours 17–23 belong to the current calendar day's session.
- */
-function getLogicalDayKey(d: Date = new Date()): string {
-  const shifted = new Date(d);
-  if (shifted.getHours() < 5) {
-    shifted.setDate(shifted.getDate() - 1);
-  }
-  const y = shifted.getFullYear();
-  const m = String(shifted.getMonth() + 1).padStart(2, '0');
-  const day = String(shifted.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 
 interface AppState {
   // ─── App ─────────────────────────────────────────────────────────────────

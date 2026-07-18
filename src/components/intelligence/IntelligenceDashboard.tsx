@@ -11,7 +11,6 @@ import {
 import type { Order, MenuItem } from '../../types';
 import {
   generateInventoryInsights,
-  generateDemoOrders,
   type InventoryInsights,
 } from '../../intelligence/inventory';
 import {

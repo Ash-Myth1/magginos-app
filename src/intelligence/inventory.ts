@@ -590,17 +590,10 @@ export function generateInventoryInsights(
       // Build an average hourly demand curve from all data for this item.
       const avgHourly = a.hourly.map((h) => h / totalDays);
 
-      // Cumulative demand from now until end of window.
+      // Walk the remaining operating hours to find potential stockout.
       const currentHour = new Date().getHours();
-      let remainingDemand = 0;
-
-      // Walk the remaining operating hours and sum expected demand.
       const currentIdx = OPERATING_HOURS.indexOf(currentHour);
       if (currentIdx === -1) continue; // outside window
-
-      for (let oi = currentIdx + 1; oi < OPERATING_HOURS.length; oi++) {
-        remainingDemand += avgHourly[OPERATING_HOURS[oi]];
-      }
 
       // Simple heuristic: if today's velocity is significantly above average,
       // find the hour where cumulative exceeds a "typical prep" threshold.

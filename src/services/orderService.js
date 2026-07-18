@@ -1,6 +1,7 @@
-import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, runTransaction, getDoc, setDoc } from 'firebase/firestore';
 import emailjs from '@emailjs/browser';
 import { db } from '../firebase';
+import { getLogicalDayKey } from '../utils/dateUtils';
 
 // ── EmailJS config from environment variables ─────────────────────────────────
 // All four keys must be set in .env.local (local) and Vercel Dashboard (production).
@@ -59,10 +60,10 @@ async function sendEmail(templateId, params) {
 }
 
 export const OrderService = {
-  // 1. Place a new order with stock validation
+  // 1. Place a new order with transactional stock validation
   placeOrder: async (orderData) => {
     try {
-      // Validate hard limit locally
+      // Validate hard limit locally (fast fail before hitting Firestore)
       for (const item of orderData.items) {
         if (item.qty > 10) {
           throw new Error(
@@ -71,14 +72,69 @@ export const OrderService = {
         }
       }
 
-      const docRef = await addDoc(collection(db, 'orders'), orderData);
+      const todayKey = getLogicalDayKey();
+      const inventoryRef = doc(db, 'settings', 'inventory');
+      const dailyStatsRef = doc(db, 'daily_stats', todayKey);
 
-      // ── Send order confirmation email ────────────────────────────────────
+      // ── Atomic transaction: read stock → validate → write order ────────
+      const newOrderId = await runTransaction(db, async (transaction) => {
+        // 1. Read current inventory (prepCounts set by admin)
+        const inventorySnap = await transaction.get(inventoryRef);
+        const prepCounts = inventorySnap.exists()
+          ? (inventorySnap.data().prepCounts ?? {})
+          : {};
+
+        // 2. Read today's sold counts (incremented atomically per checkout)
+        const dailySnap = await transaction.get(dailyStatsRef);
+        const currentSoldCounts = dailySnap.exists()
+          ? (dailySnap.data().soldCounts ?? {})
+          : {};
+
+        // 3. Validate every item in the cart against remaining stock
+        const newSoldCounts = { ...currentSoldCounts };
+        for (const item of orderData.items) {
+          const prepared = prepCounts[item.name];
+          // If no prepCount is set for this item, skip stock validation
+          // (the admin hasn't configured inventory tracking for it)
+          if (prepared === undefined) {
+            newSoldCounts[item.name] = (newSoldCounts[item.name] ?? 0) + item.qty;
+            continue;
+          }
+
+          const alreadySold = currentSoldCounts[item.name] ?? 0;
+          const remaining = prepared - alreadySold;
+
+          if (item.qty > remaining) {
+            throw new Error(
+              remaining <= 0
+                ? `Sorry, ${item.name} is sold out!`
+                : `Sorry, only ${remaining} ${item.name} left. You requested ${item.qty}.`
+            );
+          }
+          newSoldCounts[item.name] = alreadySold + item.qty;
+        }
+
+        // 4. Write the updated sold counts
+        if (dailySnap.exists()) {
+          transaction.update(dailyStatsRef, { soldCounts: newSoldCounts });
+        } else {
+          transaction.set(dailyStatsRef, { soldCounts: newSoldCounts });
+        }
+
+        // 5. Create the order document
+        //    Note: transaction.set with a new doc ref is used instead of addDoc
+        //    because addDoc is not supported inside transactions.
+        const newOrderRef = doc(collection(db, 'orders'));
+        transaction.set(newOrderRef, orderData);
+
+        return newOrderRef.id;
+      });
+
+      // ── Send order confirmation email (non-blocking) ──────────────────
       const customerEmail = orderData?.customer?.email;
       if (!customerEmail) {
         console.warn('[EmailJS] Skipping confirmation email — customer email is missing.');
       } else if (isEmailConfigValid()) {
-        // Non-blocking: do not await so the order write is never delayed
         sendEmail(emailConfig.newOrderTemplate, {
           to_name:  orderData.customer.name || 'Magginos Customer',
           to_email: customerEmail,
@@ -87,7 +143,7 @@ export const OrderService = {
         });
       }
 
-      return docRef.id;
+      return newOrderId;
     } catch (error) {
       console.error('[OrderService] placeOrder error:', error);
       throw error;

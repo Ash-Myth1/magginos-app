@@ -17,47 +17,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase';
 import { useStore } from '../store/useStore';
 import type { Order, MenuItem } from '../types';
-
-/**
- * Returns the 5 PM–5 AM session window as [startMs, endMs] for the current moment.
- *
- * Session definition:
- *   • If current hour is 17–23 → session started TODAY at 17:00, ends TOMORROW at 05:00
- *   • If current hour is 0–4   → session started YESTERDAY at 17:00, ends TODAY at 05:00
- *   • Otherwise (5–16)         → we're between sessions; return the *upcoming* session
- *                                 (today 17:00 → tomorrow 05:00)
- */
-function getCurrentSessionWindow(): { start: number; end: number } {
-  const now = new Date();
-  const h = now.getHours();
-
-  const base = new Date(now);
-  base.setSeconds(0, 0);
-
-  if (h < 5) {
-    // We're in the early-morning tail — session started YESTERDAY at 5 PM
-    base.setDate(base.getDate() - 1);
-  }
-  // Set session start to 5 PM on the base date
-  base.setHours(17, 0, 0, 0);
-  const start = base.getTime();
-  // Session end is 12 hours later at 5 AM
-  const end = start + 12 * 60 * 60 * 1000;
-  return { start, end };
-}
-
-/**
- * Compute the "logical day" key (YYYY-MM-DD) matching the 5 PM–5 AM session.
- * Hours 0–4 (early morning) are attributed to the *previous* calendar day.
- */
-function getLogicalDayKey(ts: number = Date.now()): string {
-  const d = new Date(ts);
-  if (d.getHours() < 5) d.setDate(d.getDate() - 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+import { getLogicalDayKey } from '../utils/dateUtils';
 
 export function useFirebaseSync() {
   const {
@@ -69,6 +29,7 @@ export function useFirebaseSync() {
     setOrders,
     setLoadingError,
     setIsLoading,
+    setIsStoreOpen,
     setForceInStockIds,
     setActualPrepCountsSync,
     setSoldCountsSync,
@@ -134,6 +95,22 @@ export function useFirebaseSync() {
     return unsub;
   }, [setOutOfStockIds, setForceInStockIds, setActualPrepCountsSync]);
 
+  // ── 2b. Public: Store open/closed state ────────────────────────────────
+  useEffect(() => {
+    const unsub = onSnapshot(
+      doc(db, 'settings', 'store'),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setIsStoreOpen(data.isOpen ?? true);
+        }
+        // If the doc doesn't exist yet, keep the default (true)
+      },
+      (err) => console.error('[Store status sync]', err)
+    );
+    return unsub;
+  }, [setIsStoreOpen]);
+
   // ── 3. Auth state → user profile + role lookup ─────────────────────────
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -183,8 +160,6 @@ export function useFirebaseSync() {
     if (!currentUser) {
       setOrders([]);
       setLoadingError(null);
-      // Clear sold counts when logged out
-      setSoldCountsSync({});
       return;
     }
 
@@ -203,22 +178,6 @@ export function useFirebaseSync() {
 
         setOrders(fetched);
         setLoadingError(null);
-
-        // ── Compute sold counts for tonight's session ──────────────────
-        // We derive this client-side from the live orders feed so no
-        // extra Firestore collection is needed.
-        const { start, end } = getCurrentSessionWindow();
-        const todayKey = getLogicalDayKey();
-
-        const soldToday: Record<string, number> = {};
-        for (const order of fetched) {
-          if (order.timestamp >= start && order.timestamp < end) {
-            for (const item of order.items) {
-              soldToday[item.name] = (soldToday[item.name] ?? 0) + item.qty;
-            }
-          }
-        }
-        setSoldCountsSync({ [todayKey]: soldToday });
       },
       (err) => {
         console.error('[Orders sync]', err);
@@ -227,5 +186,26 @@ export function useFirebaseSync() {
     );
 
     return unsub;
-  }, [currentUser, setOrders, setLoadingError, setSoldCountsSync]);
+  }, [currentUser, setOrders, setLoadingError]);
+
+  // ── 5. Public: Daily sold counts (from transactional daily_stats doc) ──
+  // This replaces the old client-side aggregation. The daily_stats document
+  // is updated atomically during checkout via runTransaction, making it the
+  // single source of truth for how many units have been sold.
+  useEffect(() => {
+    const todayKey = getLogicalDayKey();
+    const unsub = onSnapshot(
+      doc(db, 'daily_stats', todayKey),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setSoldCountsSync({ [todayKey]: data.soldCounts ?? {} });
+        } else {
+          setSoldCountsSync({ [todayKey]: {} });
+        }
+      },
+      (err) => console.error('[Daily stats sync]', err)
+    );
+    return unsub;
+  }, [setSoldCountsSync]);
 }

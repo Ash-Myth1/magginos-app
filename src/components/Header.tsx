@@ -1,6 +1,6 @@
 // src/components/Header.tsx
 import React from 'react';
-import { ShoppingCart, LogOut, ChevronLeft, Receipt } from 'lucide-react';
+import { ShoppingCart, LogOut, ChevronLeft, Receipt, LogIn } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 
@@ -10,7 +10,7 @@ interface HeaderProps {
   onLogout: () => void;
 }
 
-export function Header({ currentView, onLogout }: HeaderProps) {
+export function Header({ currentView, onLogin, onLogout }: HeaderProps) {
   const navigate = useNavigate();
   const { currentUser, cartCount, setShowMyOrders, setShowCheckout } = useStore();
 
@@ -42,7 +42,15 @@ export function Header({ currentView, onLogout }: HeaderProps) {
                   <LogOut size={20} />
                 </button>
               </>
-            ) : null
+            ) : (
+              <button
+                onClick={onLogin}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-orange-500 text-white rounded-xl font-bold text-sm transition-all active:scale-95 shadow-md"
+              >
+                <LogIn size={16} />
+                Sign In
+              </button>
+            )
           ) : (
             <button onClick={() => navigate('/')} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 transition-all active:scale-95">
               <ChevronLeft size={16} /> Exit Kitchen
