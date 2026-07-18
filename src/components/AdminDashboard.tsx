@@ -122,7 +122,11 @@ export function AdminDashboard({ onLogin }: AdminDashboardProps) {
         </div>
         {isAdmin && (
           <button
-            onClick={() => setIsStoreOpen(!isStoreOpen)}
+            onClick={async () => {
+              const newValue = !isStoreOpen;
+              setIsStoreOpen(newValue); // optimistic local update
+              await setDoc(doc(db, 'settings', 'store'), { isOpen: newValue }, { merge: true });
+            }}
             className={`relative z-10 w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl active:scale-95 ${
               isStoreOpen ? 'bg-green-400 text-green-950 hover:bg-green-300' : 'bg-red-500 text-white hover:bg-red-400'
             }`}

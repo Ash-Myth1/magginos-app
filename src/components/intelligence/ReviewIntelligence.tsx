@@ -10,7 +10,7 @@ import {
   AlertCircle, Clock, ChevronDown, ChevronUp,
   Sparkles, TrendingDown, ListFilter,
 } from 'lucide-react';
-import type { ReviewInsights, ProcessedReview, SentimentStatus, AspectTopic } from '../../intelligence/nlp';
+import type { ReviewInsights, SentimentStatus, AspectTopic } from '../../intelligence/nlp';
 
 interface ReviewIntelligenceProps {
   insights: ReviewInsights;

@@ -34,8 +34,9 @@ export function useOrderActions() {
       setShowCheckout(false);
       setActiveTrackingId(newId);
       setPendingOrderData(null);
-    } catch (err: any) {
-      alert(err.message || 'Database sync failed — please try again.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Database sync failed — please try again.';
+      alert(message);
     }
   };
 
