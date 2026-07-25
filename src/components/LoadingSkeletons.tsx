@@ -1,9 +1,8 @@
 // src/components/LoadingSkeletons.tsx
-import React from 'react';
 
 export function LoadingSkeletons() {
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div role="status" aria-busy="true" aria-label="Loading content" className="space-y-8 animate-in fade-in duration-500">
       <div className="bg-slate-200 h-64 sm:h-72 rounded-[2rem] sm:rounded-[2.5rem] animate-pulse w-full" />
       <div>
         <div className="h-8 bg-slate-200 rounded-lg animate-pulse w-48 mb-6" />

@@ -13,11 +13,11 @@ import { KITCHEN_UPI_ID } from './config/constants';
 import { Header } from './components/Header';
 import { Menu } from './components/Menu';
 import { CartModal } from './components/CartModal';
-import { AdminDashboard } from './components/AdminDashboard';
+const AdminDashboard = React.lazy(() => import('./components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const LandingPage = React.lazy(() => import('./components/LandingPage').then(m => ({ default: m.LandingPage })));
 import { OrderTracking } from './components/OrderTracking';
 import { MyOrdersDrawer } from './components/MyOrdersDrawer';
 import { Legal } from './components/Legal';
-import { LandingPage } from './components/LandingPage';
 import { StoreHeroBanner } from './components/StoreHeroBanner';
 import { LoadingSkeletons } from './components/LoadingSkeletons';
 import { ErrorState } from './components/ErrorState';
@@ -34,10 +34,10 @@ function QRPaymentModal() {
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiLink)}`;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-[110] animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-[110] animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="qr-modal-title">
       <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-sm p-6 sm:p-8 text-center shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 flex flex-col">
         <div className="flex justify-between items-center border-b border-slate-50 pb-4 mb-6">
-          <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
+          <h3 id="qr-modal-title" className="font-black text-slate-800 text-lg flex items-center gap-2">
             <QrCode size={20} className="text-orange-500" /> Scan to Pay
           </h3>
           <button onClick={dismiss} aria-label="Close payment modal" className="p-2 bg-slate-50 rounded-full text-slate-400 hover:text-slate-600 active:scale-90 transition-all">
@@ -116,12 +116,14 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-orange-200 selection:text-orange-900 flex flex-col">
       <div className="flex-1">
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/order" element={<OrderPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/legal" element={<Legal />} />
-        </Routes>
+        <React.Suspense fallback={<LoadingSkeletons />}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/order" element={<OrderPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/legal" element={<Legal />} />
+          </Routes>
+        </React.Suspense>
       </div>
       <footer className="py-8 text-center bg-slate-100/50 border-t border-slate-200 mt-auto">
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">&copy; 2026 Maggino's</p>

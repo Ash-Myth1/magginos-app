@@ -1,6 +1,6 @@
 // src/intelligence/nlp.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// Multi-Aspect Sentiment Analysis Engine for Maggino's (5 PM–5 AM session)
+// Multi-Aspect Sentiment Analysis Engine for Maggino's (10 PM–6 AM session)
 // Pure TypeScript · No external libraries · Keyword-based NLP with negation
 // ─────────────────────────────────────────────────────────────────────────────
 

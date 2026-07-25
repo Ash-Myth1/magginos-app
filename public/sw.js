@@ -1,7 +1,10 @@
 // public/sw.js
 // Maggino's Service Worker — Cache-First for static assets, Network-First for API calls
 
+// Bump this version string on every deploy to invalidate old caches
 const CACHE_NAME = 'magginos-v1';
+
+const MAX_CACHE_SIZE = 50;
 
 // Static assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -11,14 +14,28 @@ const PRECACHE_URLS = [
   '/manifest.json',
 ];
 
+/**
+ * Trim cache to MAX_CACHE_SIZE by removing the oldest entries first.
+ */
+async function trimCache(cacheName, maxSize) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length > maxSize) {
+    await cache.delete(keys[0]);
+    // Recurse until within limit
+    await trimCache(cacheName, maxSize);
+  }
+}
+
 self.addEventListener('install', (event) => {
   console.log('[Magginos SW] Installing...');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_URLS);
+    }).then(() => {
+      return self.skipWaiting();
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -62,7 +79,24 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
+        .catch(() =>
+          caches.match(request).then((cached) => {
+            if (cached) return cached;
+            return caches.match('/').then((root) => {
+              if (root) return root;
+              // Offline fallback when both network and cache fail
+              return new Response(
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline – Maggino\'s</title></head>' +
+                '<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#f8fafc;font-family:system-ui,sans-serif;text-align:center;padding:2rem">' +
+                '<div><h1 style="font-size:1.5rem;margin-bottom:0.5rem">You\'re Offline</h1>' +
+                '<p style="color:#94a3b8;font-size:0.875rem;margin-bottom:1.5rem">Check your connection and try again.</p>' +
+                '<button onclick="location.reload()" style="background:#f97316;color:#fff;border:none;padding:0.75rem 2rem;border-radius:1rem;font-weight:700;cursor:pointer">Retry</button></div>' +
+                '</body></html>',
+                { status: 503, headers: { 'Content-Type': 'text/html' } }
+              );
+            });
+          })
+        )
     );
     return;
   }
@@ -76,7 +110,10 @@ self.addEventListener('fetch', (event) => {
         // Only cache successful responses from same-origin or known CDNs
         if (response.ok && (url.origin === self.location.origin || url.hostname.includes('fonts.googleapis.com'))) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, clone);
+            trimCache(CACHE_NAME, MAX_CACHE_SIZE);
+          });
         }
         return response;
       });

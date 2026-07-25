@@ -6,6 +6,7 @@ export interface MenuItem {
   desc: string;
   price: number;
   tag: string;
+  image?: string;
 }
 
 export interface CartItem extends MenuItem {

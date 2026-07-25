@@ -1,6 +1,5 @@
 // src/components/MyOrdersDrawer.tsx
 // Extracted from the old renderMyOrders() inline function in App.tsx
-import React from 'react';
 import { X, Receipt, Star } from 'lucide-react';
 import { useStore } from '../store/useStore';
 

@@ -2,7 +2,7 @@
 // Visual dashboard panel for inventory forecasting, stockout alerts, and demand analytics.
 // Desktop-first design with CSS-only charts and premium glassmorphic cards.
 
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Flame, Turtle, AlertTriangle, TrendingUp, TrendingDown,
@@ -161,14 +161,14 @@ export function InventoryIntelligence({ insights }: InventoryIntelligenceProps) 
                   {insights.recommendationsLocked && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 border border-amber-200 text-amber-700 text-[9px] font-black uppercase tracking-widest">
                       <Lock size={8} />
-                      Locked until 5 AM
+                      Locked until 6 AM
                     </span>
                   )}
                 </div>
                 <p className="text-[10px] font-bold text-slate-400 mt-0.5 text-left">
                   {insights.recommendationsLocked
-                    ? 'Frozen for this shift — updates resume after 5 AM'
-                    : 'For the upcoming shift (updates after 5 AM)'}
+                    ? 'Frozen for this shift — updates resume after 6 AM'
+                    : 'For the upcoming shift (updates after 6 AM)'}
                 </p>
               </div>
             </div>
@@ -474,7 +474,7 @@ export function InventoryIntelligence({ insights }: InventoryIntelligenceProps) 
               <TrendingUp size={18} className="text-violet-600" />
             </div>
             <h4 className="font-black text-slate-800 text-sm">Hourly Demand Heatmap</h4>
-            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">11 PM – 5 AM</span>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">10 PM – 5 AM</span>
           </div>
           {expandedSection === 'heatmap' ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
         </button>
@@ -502,8 +502,8 @@ function HourlyHeatmap({ data }: { data: Record<string, number[]> }) {
     return <p className="text-sm text-slate-400 italic font-medium">No hourly data available</p>;
   }
 
-  // Operating hours: 23, 0, 1, 2, 3, 4
-  const opHours = [23, 0, 1, 2, 3, 4];
+  // Operating hours: 10 PM through 5 AM (full 8-hour window)
+  const opHours = [22, 23, 0, 1, 2, 3, 4, 5];
 
   // Find max value for color scaling
   const allVals = items.flatMap(([, arr]) => opHours.map(h => arr[h] ?? 0));

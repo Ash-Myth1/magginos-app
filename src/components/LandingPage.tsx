@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -50,7 +50,7 @@ const VectorOnions = () => (
 );
 
 const dropPhysics = { 
-  type: "tween", 
+  type: "tween" as const, 
   ease: [0.22, 1, 0.36, 1], 
   duration: 0.8 
 };

@@ -1,7 +1,7 @@
 // src/intelligence/inventory.ts
 // ─────────────────────────────────────────────────────────────────────────────
 // Inventory Forecasting Engine for Maggino's — a late-night restaurant
-// operating from 5 PM to 5 AM (full 12-hour session).
+// operating from 10 PM to 6 AM (full 8-hour session).
 //
 // This module produces actionable inventory insights from order history:
 //   • Daily sales forecasts per menu item
@@ -28,7 +28,7 @@ export interface DailyForecastItem {
   itemName: string;
   /** Units actually sold so far today. */
   soldToday: number;
-  /** Projected total units by end of today's operating window (5 AM). */
+  /** Projected total units by end of today's operating window (6 AM). */
   projectedTotal: number;
   /** Historical average daily units (from real or demo data). */
   avgDaily: number;
@@ -77,7 +77,7 @@ export interface PrepRecommendation {
   /** How many units have already been sold today. */
   soldToday: number;
   /**
-   * True when the operating session is live (5 PM–5 AM).
+   * True when the operating session is live (10 PM–6 AM).
    * Recommendations are frozen during this window so that incoming orders
    * do NOT inflate the recommended stock count.
    */
@@ -97,7 +97,7 @@ export interface InventoryInsights {
   /** True when the engine fell back to synthetic demo data. */
   isUsingDemoData: boolean;
   /**
-   * True during the 5 PM–5 AM operating window.
+   * True during the 10 PM–6 AM operating window.
    * Prep recommendations are locked (frozen) during this period
    * to prevent live orders from inflating the recommended stock counts.
    */
@@ -107,14 +107,14 @@ export interface InventoryInsights {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 /**
- * Operating hours for the full 5 PM–5 AM session, expressed as an ordered
+ * Operating hours for the full 10 PM–6 AM session, expressed as an ordered
  * sequence that spans two calendar days.
- * Index 0 is the session start (17 = 5 PM), last is 4 (4 AM–5 AM).
+ * Index 0 is the session start (22 = 10 PM), last is 5 (5 AM–6 AM).
  */
-const OPERATING_HOURS: readonly number[] = [17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4] as const;
+const OPERATING_HOURS: readonly number[] = [22, 23, 0, 1, 2, 3, 4, 5] as const;
 
 /** Total length of a single operating window in hours. */
-const WINDOW_LENGTH = OPERATING_HOURS.length; // 12 hours
+const WINDOW_LENGTH = OPERATING_HOURS.length; // 8 hours
 
 /** Minimum real orders required before we trust real data over demo data. */
 const MIN_REAL_ORDERS = 10;
@@ -148,17 +148,17 @@ function formatHourRange(h: number): string {
 
 /**
  * Return the calendar-date string (YYYY-MM-DD) in the restaurant's "logical
- * day" perspective using the 5 PM–5 AM session definition.
+ * day" perspective using the 10 PM–6 AM session definition.
  *
- * Hours 0–4 (early morning, still in the night session) are mapped back to
- * the *previous* calendar day so they group with the 5 PM session start.
- * Hours 17–23 already belong to the current calendar day.
+ * Hours 0–5 (early morning, still in the night session) are mapped back to
+ * the *previous* calendar day so they group with the 10 PM session start.
+ * Hours 22–23 already belong to the current calendar day.
  */
 function logicalDay(timestamp: number): string {
   const d = new Date(timestamp);
-  // If the real hour is 0–4 (after midnight but still in the window),
-  // subtract one calendar day so it groups with the 5 PM start.
-  if (d.getHours() < 5) {
+  // If the real hour is 0–5 (after midnight but still in the window),
+  // subtract one calendar day so it groups with the 10 PM start.
+  if (d.getHours() < 6) {
     d.setDate(d.getDate() - 1);
   }
   const y = d.getFullYear();
@@ -173,9 +173,9 @@ function hourOf(timestamp: number): number {
 }
 
 /**
- * How far (0.0 – 1.0) into the current operating window (5 PM–5 AM) we are.
- * Returns 0 when outside the operating window (i.e. between 5 AM and 5 PM).
- * Returns 1.0 at the very end (5 AM).
+ * How far (0.0 – 1.0) into the current operating window (10 PM–6 AM) we are.
+ * Returns 0 when outside the operating window (i.e. between 6 AM and 10 PM).
+ * Returns 1.0 at the very end (6 AM).
  */
 function windowProgress(): number {
   const now = new Date();
@@ -211,7 +211,7 @@ function seededRandom(seed: number): () => number {
 
 /**
  * Create ~50 realistic synthetic orders spread across 3–5 nights within the
- * 5 PM – 5 AM window.
+ * 10 PM – 6 AM window.
  *
  * Realism levers:
  * - Popularity follows a power-law: a few items dominate.
@@ -250,7 +250,7 @@ export function generateDemoOrders(menuItems: MenuItem[]): Order[] {
   const baseDate = new Date();
   // Start from (DEMO_DAY_SPAN - 1) days ago.
   baseDate.setDate(baseDate.getDate() - (DEMO_DAY_SPAN - 1));
-  baseDate.setHours(17, 0, 0, 0); // Session starts at 5 PM
+  baseDate.setHours(22, 0, 0, 0); // Session starts at 10 PM
 
   for (let ordIdx = 0; ordIdx < DEMO_ORDER_COUNT; ordIdx++) {
     // Pick a random night (0 .. DEMO_DAY_SPAN-1).
@@ -260,27 +260,23 @@ export function generateDemoOrders(menuItems: MenuItem[]): Order[] {
     // We sample from a triangular-ish distribution peaking at midnight.
     const hourBias = (): number => {
       const u = rng();
-      // Distribution across the 12-hour window (17 PM → 5 AM)
-      if (u < 0.05) return 17; // early evening — lightest traffic
-      if (u < 0.10) return 18;
-      if (u < 0.16) return 19;
-      if (u < 0.23) return 20;
-      if (u < 0.32) return 21;
-      if (u < 0.45) return 22;
-      if (u < 0.60) return 23; // ramp up as the night gets going
-      if (u < 0.72) return 0;  // midnight peak
-      if (u < 0.82) return 1;
-      if (u < 0.89) return 2;
-      if (u < 0.95) return 3;
-      return 4; // tail end
+      // Distribution across the 8-hour window (10 PM → 6 AM)
+      if (u < 0.08) return 22; // early night — lighter traffic
+      if (u < 0.22) return 23; // ramp up
+      if (u < 0.42) return 0;  // midnight peak
+      if (u < 0.62) return 1;  // still hot
+      if (u < 0.78) return 2;  // late night
+      if (u < 0.88) return 3;
+      if (u < 0.95) return 4;
+      return 5; // tail end
     };
     const hour = hourBias();
     const minute = Math.floor(rng() * 60);
 
     const orderDate = new Date(baseDate);
     orderDate.setDate(baseDate.getDate() + nightOffset);
-    // Handle wrap: hours 0-4 are technically the *next* calendar day.
-    if (hour < 5) {
+    // Handle wrap: hours 0-5 are technically the *next* calendar day.
+    if (hour < 6) {
       orderDate.setDate(orderDate.getDate() + 1);
     }
     orderDate.setHours(hour, minute, Math.floor(rng() * 60), 0);
@@ -431,7 +427,7 @@ export function generateInventoryInsights(
   const totalDays = Math.max(1, allDays.size);
 
   /**
-   * windowProgress() returns 0 when we're outside operating hours (5 AM – 5 PM).
+   * windowProgress() returns 0 when we're outside operating hours (6 AM – 10 PM).
    * In that case we use the expected daily average as the projection instead of
    * extrapolating from zero sales — avoiding the 100× inflation bug.
    */
@@ -488,7 +484,7 @@ export function generateInventoryInsights(
 
       let projectedTotal: number;
       if (!isInsideWindow) {
-        // Outside operating hours (5 AM–5 PM): show the expected forecast for
+        // Outside operating hours (6 AM–10 PM): show the expected forecast for
         // tonight — not an extrapolation from today's (non-existent) sales.
         projectedTotal = expectedToday;
       } else if (a.todayQty > 0) {
@@ -512,7 +508,7 @@ export function generateInventoryInsights(
   //
   // IMPORTANT: recommendedQty is always based on HISTORICAL data (never today's
   // live sales). This prevents incoming orders from inflating the recommended
-  // stock count during the 5 PM–5 AM operating window.
+  // stock count during the 10 PM–6 AM operating window.
   // isLocked=true when the session is live; the UI uses this to render the
   // lock badge and suppress the "update" affordance.
   const prepRecommendations: PrepRecommendation[] = Object.entries(accum)

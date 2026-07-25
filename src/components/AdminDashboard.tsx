@@ -1,5 +1,4 @@
 // src/components/AdminDashboard.tsx
-import React from 'react';
 import { IntelligenceDashboard } from './intelligence/IntelligenceDashboard';
 import {
   Lock, Store, Power, BarChart3, ChefHat, User, MapPin,
@@ -11,6 +10,7 @@ import { db } from '../firebase';
 import { useStore } from '../store/useStore';
 import type { Order, OrderStatus } from '../types';
 import { OrderService } from '../services/orderService';
+import { getCurrentSessionWindow } from '../utils/dateUtils';
 
 async function updateOrderStatus(order: Order, newStatus: OrderStatus) {
   if (!order.dbId) return;
@@ -77,16 +77,8 @@ export function AdminDashboard({ onLogin }: AdminDashboardProps) {
   const isChef = currentUser.role === 'chef';
   const isDelivery = currentUser.role === 'delivery';
 
-  // ── Tonight's session: 5 PM → 5 AM ──────────────────────────────────
-  // If we're before 5 AM, the session started YESTERDAY at 5 PM.
-  // If we're after 5 PM, the session started TODAY at 5 PM.
-  const now = new Date();
-  const h = now.getHours();
-  const sessionBase = new Date(now);
-  if (h < 5) sessionBase.setDate(sessionBase.getDate() - 1);
-  sessionBase.setHours(17, 0, 0, 0); // 5 PM
-  const sessionStart = sessionBase.getTime();
-  const sessionEnd = sessionStart + 12 * 60 * 60 * 1000; // +12 h = 5 AM
+  // ── Tonight's session: 10 PM → 6 AM (centralized in dateUtils) ──────
+  const { start: sessionStart, end: sessionEnd } = getCurrentSessionWindow();
 
   const tonightOrders = orders.filter(
     (o) => o.timestamp >= sessionStart && o.timestamp < sessionEnd

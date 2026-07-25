@@ -1,5 +1,4 @@
 // src/components/OrderTracking.tsx
-import React from 'react';
 import {
   ChevronLeft, Clock, ChefHat, MapPin, CheckCircle2, Star,
   Store, Package, Send,

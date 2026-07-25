@@ -1,6 +1,5 @@
 // src/components/StoreHeroBanner.tsx
 // The hero section — extracted out of App.tsx for clean separation.
-import React from 'react';
 import { UtensilsCrossed, Clock } from 'lucide-react';
 import type { CrewUser } from '../types';
 

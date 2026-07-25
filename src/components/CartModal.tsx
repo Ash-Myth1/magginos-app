@@ -1,5 +1,5 @@
 // src/components/CartModal.tsx
-import React from 'react';
+import type { FormEvent } from 'react';
 import { X, Trash2, MapPin, Store, CreditCard, Banknote, ShoppingBag } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useOrderActions } from '../hooks/useAppActions';
@@ -22,7 +22,7 @@ export function CartModal({ onLogin }: CartModalProps) {
   const deliveryFee = customerInfo.orderType === 'delivery' ? 10 : 0;
   const total = subtotal + deliveryFee;
 
-  const initiateCheckout = async (e: React.FormEvent) => {
+  const initiateCheckout = async (e: FormEvent) => {
     e.preventDefault();
     if (cart.length === 0 || !currentUser) return;
 

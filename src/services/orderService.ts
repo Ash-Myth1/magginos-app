@@ -1,7 +1,8 @@
-import { collection, addDoc, updateDoc, doc, runTransaction, getDoc, setDoc } from 'firebase/firestore';
+import { collection, updateDoc, doc, runTransaction } from 'firebase/firestore';
 import emailjs from '@emailjs/browser';
 import { db } from '../firebase';
 import { getLogicalDayKey } from '../utils/dateUtils';
+import type { Order, OrderItem } from '../types';
 
 // ── EmailJS config from environment variables ─────────────────────────────────
 // All four keys must be set in .env.local (local) and Vercel Dashboard (production).
@@ -42,7 +43,7 @@ function isEmailConfigValid() {
 /**
  * Sends an EmailJS email, logging a clear error with status code on failure.
  */
-async function sendEmail(templateId, params) {
+async function sendEmail(templateId: string, params: Record<string, unknown>) {
   try {
     const result = await emailjs.send(
       emailConfig.serviceId,
@@ -51,17 +52,18 @@ async function sendEmail(templateId, params) {
       emailConfig.publicKey
     );
     console.info(`[EmailJS] ✅ Email sent — status ${result.status}: ${result.text}`);
-  } catch (err) {
+  } catch (err: unknown) {
     // err from @emailjs/browser v4 is an EmailJSResponseStatus object
-    const status = err?.status ?? 'unknown';
-    const text   = err?.text   ?? String(err);
+    const e = err as { status?: number; text?: string };
+    const status = e?.status ?? 'unknown';
+    const text   = e?.text   ?? String(err);
     console.error(`[EmailJS] ❌ Failed to send email (status ${status}): ${text}`);
   }
 }
 
 export const OrderService = {
   // 1. Place a new order with transactional stock validation
-  placeOrder: async (orderData) => {
+  placeOrder: async (orderData: Omit<Order, 'dbId'>) => {
     try {
       // Validate hard limit locally (fast fail before hitting Firestore)
       for (const item of orderData.items) {
@@ -151,11 +153,11 @@ export const OrderService = {
   },
 
   // 2. Update order status
-  updateStatus: async (orderId, newStatus, orderData) => {
+  updateStatus: async (orderId: string, newStatus: string, orderData?: Order) => {
     try {
       const orderRef = doc(db, 'orders', orderId);
       const now = Date.now();
-      const payload = { status: newStatus };
+      const payload: Record<string, unknown> = { status: newStatus };
 
       if (newStatus === 'Cooking')                                                     payload['timestamps.acceptedAt']  = now;
       else if (newStatus === 'Out for Delivery' || newStatus === 'Ready for Pickup')   payload['timestamps.readyAt']     = now;
@@ -188,18 +190,18 @@ export const OrderService = {
       return true;
     } catch (error) {
       console.error('[OrderService] updateStatus error:', error);
-      throw new Error('Failed to update status');
+      throw new Error('Failed to update status', { cause: error });
     }
   },
 
   // 3. Submit item ratings
-  submitRatings: async (orderId, updatedItems) => {
+  submitRatings: async (orderId: string, updatedItems: OrderItem[]) => {
     try {
       await updateDoc(doc(db, 'orders', orderId), { items: updatedItems });
       return true;
     } catch (error) {
       console.error('[OrderService] submitRatings error:', error);
-      throw new Error('Failed to submit rating');
+      throw new Error('Failed to submit rating', { cause: error });
     }
   },
 };

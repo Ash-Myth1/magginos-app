@@ -1,6 +1,5 @@
 // src/components/Legal.tsx
 
-import React from 'react';
 import { ChevronLeft, ShieldCheck, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
