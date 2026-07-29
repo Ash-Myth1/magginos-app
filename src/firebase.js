@@ -1,21 +1,21 @@
-//imports
+// imports
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
-//connection
+// connection
 const firebaseConfig = {
-  apiKey: 'AIzaSyDiZzAO7cJ33reDh73uobzkYuIEleSvLY8',
-  authDomain: 'magginos.firebaseapp.com',
-  projectId: 'magginos',
-  storageBucket: 'magginos.firebasestorage.app',
-  messagingSenderId: '700997011726',
-  appId: '1:700997011726:web:0c1bcb38a1ccd5d5e0ef5f',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
-//google Oauth
+// google Oauth
 export const auth = getAuth(app);
 export const provider = new GoogleAuthProvider();
