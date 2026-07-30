@@ -13,7 +13,7 @@
 🔗 **[Live Demo](#)** | 📖 **[Read the LinkedIn Architecture Breakdown](#)**
 
 <div align="center">
-  <video src="github/assets/hero-demo.mp4" autoplay loop muted playsinline width="800"></video>
+  <video src="https://raw.githubusercontent.com/Ash-Myth1/magginos-app/main/github/assets/hero-demo.mp4" autoplay loop muted playsinline width="800"></video>
   <p><i>Live PWA Demonstration: Fluid Framer Motion UI and dynamic routing.</i></p>
 </div>
 
