@@ -78,3 +78,52 @@ graph TD
     NLP --> Agg[Logical Day Mapping]
     Agg --> PRNG[Mulberry32 PRNG Data Modeler]
     end
+```
+
+### 1. Atomic Double-Layered Stock Enforcement
+Midnight rushes mean multiple students attempt to order the final Maggi simultaneously. I engineered strict concurrency safety using **Firestore `runTransaction`** to implement server-side atomic read-validate-write protocols. 
+
+```typescript
+// Core implementation of the atomic transaction lock
+await runTransaction(db, async (transaction) => {
+  const stockDoc = await transaction.get(inventoryRef);
+  if (stockDoc.data().current_stock < orderQuantity) {
+    throw new Error("Race condition prevented: Out of stock.");
+  }
+  transaction.update(inventoryRef, { 
+    current_stock: increment(-orderQuantity) 
+  });
+});
+```
+
+### 2. "Logical Day" Domain Modeling
+Standard `Date()` objects fail for businesses operating across midnight. I engineered a `Logical Day` model. An order placed at **2:30 AM on Wednesday** is programmatically shifted and mapped to the **"Tuesday Night"** logical dataset, preventing fragmented analytics.
+
+<div align="center">
+  <img src=".github/assets/image_d6c364.png" alt="Midnight Shift Demand Heatmap" width="700"/>
+  <p><i>The Logical Day matrix successfully mapping the 11 PM to 5 AM timeframe into a single, contiguous operational shift.</i></p>
+</div>
+
+### 3. Deterministic PRNG Load Simulation
+To stress-test the system, I implemented a hand-built **mulberry32 PRNG** (Pseudo-Random Number Generator) to simulate power-law popularity skews. This ensures load-testing data is mathematically deterministic, perfectly reproducible, and not just randomly chaotic.
+
+---
+
+## 🛠️ DevOps & Production Execution
+
+* **TypeScript Domain Modeling:** Strict interfaces and literal unions ensure malformed payloads cannot reach the data layer. 
+* **Hard-Scoped Data Security:** Firebase Security Rules physically prevent unauthorized data fetching at the database level, ensuring the client cannot be manipulated into bypassing RBAC (Role-Based Access Control).
+* **Load Testing (k6):** Validated system integrity by simulating **50 concurrent virtual users** executing transaction scripts against the live Firebase REST endpoint to verify quota isolation.
+* **Zero-Downtime CI/CD:** A GitHub Actions workflow automatically blocks production deployments to Vercel if strict TypeScript compilation or test processes fail.
+* **Dual-Strategy Service Worker:** Deployed as an installable PWA designed for unstable hostel Wi-Fi, featuring aggressive local caching with an explicit bypass for live transactional endpoints.
+
+---
+
+## 💻 Tech Stack Snapshot
+* **Core:** React (Vite), TypeScript, Tailwind CSS, Framer Motion
+* **Infrastructure:** Firebase (Firestore, Auth, Security Rules), Vercel
+* **DevOps:** k6 Load Testing, GitHub Actions
+* **Custom Algorithms:** Levenshtein Matrix, Mulberry32 PRNG, Regex Heuristics
+
+---
+*Architected and developed by Ashmit Srivastava. Open to feedback, code reviews, and technical critiques.*
