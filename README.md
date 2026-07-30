@@ -13,7 +13,7 @@
 🔗 **[Live Demo](#)** | 📖 **[Read the LinkedIn Architecture Breakdown](#)**
 
 <div align="center">
-  <video src=".github/assets/hero-demo.mp4" autoplay loop muted playsinline width="800"></video>
+  <video src="github/assets/hero-demo.mp4" autoplay loop muted playsinline width="800"></video>
   <p><i>Live PWA Demonstration: Fluid Framer Motion UI and dynamic routing.</i></p>
 </div>
 
@@ -29,7 +29,7 @@ I deliberately bypassed black-box APIs (OpenAI, HuggingFace) to build an **Aspec
 * **3-Token Negation Window:** Context-aware polarity flipping looks up to three tokens behind an aspect word to detect negations (e.g., *not*, *hardly*, *without*).
 
 <div align="center">
-  <img src=".github/assets/Screenshot%202026-07-30%20161207.png" alt="Aspect-Based Review Intelligence Dashboard" width="700"/>
+  <img src="github/assets/Screenshot%202026-07-30%20161207.png" alt="Aspect-Based Review Intelligence Dashboard" width="700"/>
   <p><i>Live Operations Intelligence dashboard isolating compound student reviews into specific performance aspects.</i></p>
 </div>
 
@@ -54,7 +54,7 @@ Late-night typing is notoriously inaccurate. I implemented a Levenshtein distanc
 * **Explainable AI (XAI) Wastage Risk:** Outputs a 5-factor risk score for stockouts/wastage. Rather than a black-box percentage, the system provides plain-English deterministic reasoning for its risk assessment.
 
 <div align="center">
-  <img src=".github/assets/Screenshot%202026-07-30%20161316.png" alt="XAI Wastage Risk Engine" width="700"/>
+  <img src="github/assets/Screenshot%202026-07-30%20161316.png" alt="XAI Wastage Risk Engine" width="700"/>
   <p><i>Explainable AI scoring providing deterministic, plain-English reasoning for stockout and wastage risks based on historical pacing.</i></p>
 </div>
 
@@ -100,7 +100,7 @@ await runTransaction(db, async (transaction) => {
 Standard `Date()` objects fail for businesses operating across midnight. I engineered a `Logical Day` model. An order placed at **2:30 AM on Wednesday** is programmatically shifted and mapped to the **"Tuesday Night"** logical dataset, preventing fragmented analytics.
 
 <div align="center">
-  <img src=".github/assets/Screenshot%202026-07-30%20161346.png" alt="Midnight Shift Demand Heatmap" width="700"/>
+  <img src="github/assets/Screenshot%202026-07-30%20161346.png" alt="Midnight Shift Demand Heatmap" width="700"/>
   <p><i>The Logical Day matrix successfully mapping the 11 PM to 5 AM timeframe into a single, contiguous operational shift.</i></p>
 </div>
 
